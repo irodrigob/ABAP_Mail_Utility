@@ -18,6 +18,18 @@
      <LANGU>E</LANGU>
      <DESCRIPT>Send mail</DESCRIPT>
     </SEOCOMPOTX>
+    <SEOCOMPOTX>
+     <CLSNAME>ZCL_CA_SEND_MAIL</CLSNAME>
+     <CMPNAME>SET_RECIPIENTES</CMPNAME>
+     <LANGU>E</LANGU>
+     <DESCRIPT>Set recipients to the mail</DESCRIPT>
+    </SEOCOMPOTX>
+    <SEOCOMPOTX>
+     <CLSNAME>ZCL_CA_SEND_MAIL</CLSNAME>
+     <CMPNAME>SET_SENDER</CMPNAME>
+     <LANGU>E</LANGU>
+     <DESCRIPT>Set sender to the mail</DESCRIPT>
+    </SEOCOMPOTX>
    </DESCRIPTIONS>
   </asx:values>
  </asx:abap>

@@ -61,7 +61,8 @@ CLASS zcl_ca_send_mail DEFINITION
     DATA mv_langu TYPE sylangu .
 *  data mO_PLANTILLA type ref to ZCL_CA_PLANTILLA_MAIL .
     DATA mo_mime_helper TYPE REF TO cl_gbt_multirelated_service .
-    METHODS build_subject_body
+
+    METHODS set_subject_body
       IMPORTING
         it_symbols          TYPE zca_i_mail_template_symbols OPTIONAL
         it_symbols_in_table TYPE zca_i_mail_table_symbols_value OPTIONAL
@@ -97,6 +98,26 @@ CLASS zcl_ca_send_mail DEFINITION
         iv_in_string         TYPE string
       RETURNING
         VALUE(rv_out_string) TYPE string.
+    "! <p class="shorttext synchronized" lang="en">Set recipients to the mail</p>
+    "!
+    METHODS set_recipientes
+      IMPORTING
+        it_recipients     TYPE bcsy_smtpa
+        it_recipients_cc  TYPE bcsy_smtpa
+        it_recipients_bcc TYPE bcsy_smtpa
+      EXPORTING
+        es_return         TYPE bapiret2.
+    "! <p class="shorttext synchronized" lang="en">Set sender to the mail</p>
+    "!
+    METHODS set_sender
+      IMPORTING
+        iv_sender TYPE ad_smtpadr.
+    METHODS set_replyto
+      IMPORTING
+        iv_replyto TYPE ad_smtpadr.
+    METHODS set_images
+      IMPORTING
+        it_images TYPE zca_i_mail_images.
 
   PRIVATE SECTION.
 
@@ -105,261 +126,6 @@ ENDCLASS.
 
 
 CLASS zcl_ca_send_mail IMPLEMENTATION.
-  METHOD send_with_template.
-  ENDMETHOD.
-
-  METHOD send.
-
-    CLEAR: es_return.
-
-    mv_subject = iv_subject. " Se guarda el asunto
-
-    " El cuerpo se parte en línea si tienes carácteres de salto de línea
-    SPLIT iv_body AT cl_abap_char_utilities=>cr_lf INTO TABLE mt_body.
-
-    " Se hace lo mismo con la firma, si esta informada.
-    SPLIT iv_signature AT cl_abap_char_utilities=>cr_lf INTO TABLE DATA(lt_signature).
-
-    " Se añade la firma al cuerpo
-    LOOP AT lt_signature ASSIGNING FIELD-SYMBOL(<ls_signature>).
-      INSERT <ls_signature> INTO TABLE mt_body.
-    ENDLOOP.
-
-    " En modo previsualización se construye el asunto y cuerpo y se devuelve sus textos. En modo
-    " normal se hace el mail pero enviandolo.
-    IF iv_preview = abap_false.
-      TRY.
-
-        CATCH cx_root.
-          es_return = zcl_ca_utilities=>fill_return( iv_type       = zif_ca_mail_data=>cs_message-error
-                                                     iv_id         = zif_ca_mail_data=>cs_message-id
-                                                     iv_number     = '002' " Error al enviar mail
-                                                     iv_langu      = mv_langu ).
-      ENDTRY.
-
-    ELSE.
-      build_subject_body( EXPORTING it_symbols = it_symbols
-                                    it_symbols_in_table = it_symbols_in_table
-                          IMPORTING es_return = es_return ).
-    ENDIF.
-
-  ENDMETHOD.
-
-  METHOD constructor.
-    mv_langu = iv_langu.
-
-
-  ENDMETHOD.
-
-
-  METHOD build_subject_body.
-    DATA lt_body_mail TYPE bcsy_text.
-
-    CLEAR: es_return.
-
-    " Se sustituye los simbols en la variable del asunto y del cuerpo. En el caso del cuerpo solo se hace si la
-    " tabla de simbolos en tabla no esta informada
-* Recorro los simbolos para ir reemplazandolos en el asunto y cuerpo.
-    LOOP AT it_symbols ASSIGNING FIELD-SYMBOL(<ls_symbol>).
-      REPLACE ALL OCCURRENCES OF <ls_symbol>-symbol IN mv_subject WITH <ls_symbol>-value.
-      IF it_symbols_in_table IS INITIAL.
-        REPLACE ALL OCCURRENCES OF <ls_symbol>-symbol IN TABLE mt_body WITH <ls_symbol>-value.
-      ENDIF.
-    ENDLOOP.
-
-    "  Nueva rutina para cambiar las claves en el cuerpo para insertar tablas:
-    IF it_symbols_in_table IS NOT INITIAL.
-      TRY.
-          replace_symbols_in_table( EXPORTING it_symbols = it_symbols
-                                          it_symbols_in_table     = it_symbols_in_table
-                                 CHANGING ct_body      = mt_body ).
-        CATCH cx_root.
-          es_return = zcl_ca_utilities=>fill_return( iv_type       = zif_ca_mail_data=>cs_message-error
-                                                     iv_id         = zif_ca_mail_data=>cs_message-id
-                                                     iv_number     = '001' " Error al construir el cuerpo del mail
-                                                     iv_langu      = mv_langu ).
-      ENDTRY.
-    ENDIF.
-
-    IF es_return IS INITIAL. " Sin errores se continua el proceso
-
-      " Se adapta la tabla con el cuerpo al formato de la tabla internal del BCS
-      LOOP AT mt_body ASSIGNING FIELD-SYMBOL(<ls_body>).
-        DATA(lt_mail_tmp) = cl_bcs_convert=>string_to_soli( <ls_body> ).
-        INSERT LINES OF lt_mail_tmp INTO TABLE lt_body_mail.
-        CLEAR lt_mail_tmp.
-      ENDLOOP.
-
-      " Se pasa el asunto
-      DATA(lv_subject_mail) = CONV so_obj_des( mv_subject ).
-
-      TRY.
-          mo_doc_bcs = cl_document_bcs=>create_document( i_type = zif_ca_mail_data=>cs_mail-type-html
-                                                         i_text = lt_body_mail
-                                                         i_subject = lv_subject_mail ).
-        CATCH cx_root.
-
-          es_return = zcl_ca_utilities=>fill_return( iv_type       = zif_ca_mail_data=>cs_message-error
-                                                     iv_id         = zif_ca_mail_data=>cs_message-id
-                                                     iv_number     = '002' " Error al enviar mail
-                                                     iv_langu      = mv_langu ).
-      ENDTRY.
-
-    ENDIF.
-  ENDMETHOD.
-
-
-  METHOD replace_symbols_in_table.
-    FIELD-SYMBOLS <lt_table_data> TYPE INDEX TABLE.
-
-    DATA lv_initial_html_string TYPE string.
-    DATA lv_result_html_string  TYPE string.
-    DATA lo_table_data          TYPE REF TO data.
-    DATA lo_symbols            TYPE REF TO data.
-
-    " Se concatena todos el cuerpo en una sola variable
-    CONCATENATE LINES OF ct_body INTO lv_initial_html_string RESPECTING BLANKS.
-
-    "  Creamos una tabla interna con los simbolos a insertar, y una estructura con los datos genericos
-
-    " Creamos una tabla interna con los simbolos a insertar, y una estructura con los datos genericos
-    generate_dynamic_symbol_table( EXPORTING it_symbols   = it_symbols
-                                             it_symbols_in_table       = it_symbols_in_table
-                                   IMPORTING eo_table_data  = lo_symbols
-                                             eo_data_struct = lo_table_data ).
-
-    ASSIGN: lo_table_data->* TO <lt_table_data>,
-            lo_symbols->*   TO FIELD-SYMBOL(<ls_simbolos>).
-
-    IF <lt_table_data> IS ASSIGNED AND <ls_simbolos> IS ASSIGNED.
-      lv_result_html_string = apply_data_to_template( iv_html_string  = lv_initial_html_string
-                                                      it_data         = <lt_table_data>
-                                                      is_general_data = <ls_simbolos> ).
-    ENDIF.
-
-    SPLIT lv_result_html_string AT cl_abap_char_utilities=>cr_lf INTO TABLE ct_body.
-
-  ENDMETHOD.
-
-
-  METHOD generate_dynamic_symbol_table.
-    FIELD-SYMBOLS <ls_table_line> TYPE any.
-    FIELD-SYMBOLS <lt_table> TYPE INDEX TABLE.
-
-    FREE: eo_data_struct, eo_table_data.
-
-    TRY.
-        " Creamos una tabla interna  de simbolos pero quitando los carácteres especiales
-
-        DATA(lt_symbols) = VALUE zca_i_mail_template_symbols( FOR <wa> IN it_symbols ( symbol = remove_special_chars( <wa>-symbol )
-                                                                                       value = <wa>-value
-                                                                                       values_table = <wa>-values_table ) ).
-
-        " Paso 1: generamos la tabla de componentes:
-        DATA(lt_components) = VALUE cl_abap_structdescr=>component_table( FOR <wa> IN lt_symbols ( name = <wa>-symbol
-                                                                                                   type = cl_abap_elemdescr=>get_string( ) ) ).
-
-        " Paso 2 creamnos la estructura y la instanciamos:
-        DATA(lo_structdescr) = cl_abap_structdescr=>create( p_components = lt_components ).    " Component Table
-        CREATE DATA eo_data_struct TYPE HANDLE lo_structdescr.
-        ASSIGN eo_data_struct->* TO <ls_table_line>.
-
-        " Paso 3: rellenamos la estructura:
-        LOOP AT lt_symbols ASSIGNING FIELD-SYMBOL(<ls_symbol>).
-          ASSIGN COMPONENT <ls_symbol>-symbol OF STRUCTURE <ls_table_line> TO FIELD-SYMBOL(<lv_comp>).
-          IF sy-subrc EQ 0.
-            <lv_comp> = <ls_symbol>-value.
-          ENDIF.
-        ENDLOOP.
-
-        " Paso 4: Creamos la tabla interna
-        DATA(lo_tabledescr) = cl_abap_tabledescr=>create( p_line_type = lo_structdescr ).
-        CREATE DATA eo_table_data TYPE HANDLE lo_tabledescr.
-        ASSIGN eo_table_data->* TO <lt_table>.
-
-        " Paso 5: rellenamos la tabla interna:
-
-        LOOP AT it_symbols_in_table ASSIGNING FIELD-SYMBOL(<ls_symbols_in_table>).
-          APPEND INITIAL LINE TO <lt_table> ASSIGNING <ls_table_line>.
-
-          "   Buscamos los campos que vamos a informar para esta clave:
-          LOOP AT it_symbols ASSIGNING <ls_symbol>.
-
-
-            READ TABLE <ls_symbol>-values_table ASSIGNING FIELD-SYMBOL(<ls_tabla_valores>)
-              WITH KEY key = <ls_symbols_in_table>-key.
-            IF sy-subrc EQ 0.
-              ASSIGN COMPONENT <ls_symbol>-symbol OF STRUCTURE <ls_table_line> TO <lv_comp>.
-              IF sy-subrc EQ 0.
-                <lv_comp> = <ls_tabla_valores>-value.
-              ENDIF.
-            ENDIF.
-          ENDLOOP.
-
-
-        ENDLOOP.
-
-      CATCH cx_root.
-    ENDTRY.
-  ENDMETHOD.
-
-
-  METHOD remove_special_chars.
-    DATA:
-      lv_allowed_char    TYPE char27,                       "#EC *
-      lv_replace_by_a(5) TYPE c VALUE 'ÄÀÂÃÁ',              "#EC *
-      lv_replace_by_e(4) TYPE c VALUE 'ËÈÊÉ',               "#EC *
-      lv_replace_by_i(4) TYPE c VALUE 'ÏÌÎÍ',               "#EC *
-      lv_replace_by_o(5) TYPE c VALUE 'ÖÒÔÕÓ',              "#EC *
-      lv_replace_by_u(4) TYPE c VALUE 'ÜÙÛÚ'.               "#EC *
-
-    DATA:
-      lv_string(1000) TYPE c,
-      lv_length       TYPE i,
-      lv_index        TYPE i.
-
-    CONSTANTS lc_numbers TYPE char10 VALUE '0123456789'.
-
-    lv_allowed_char = sy-abcde && '_'.
-    lv_string = iv_symbol.
-
-    TRANSLATE lv_string TO UPPER CASE.
-
-    lv_length = strlen( lv_string ).
-
-    IF lv_string(1) CA lc_numbers.
-      lv_string(1) = space.
-    ENDIF.
-
-    DO lv_length TIMES.
-      lv_index = sy-index - 1.
-
-      IF ( lv_string+lv_index(1) CA lv_allowed_char OR
-           lv_string+lv_index(1) CA lc_numbers ).
-
-        CONTINUE.
-      ENDIF.
-
-      IF lv_string+lv_index(1) CA lv_replace_by_a.
-        lv_string+lv_index(1) = 'A'.
-      ELSEIF lv_string+lv_index(1) CA lv_replace_by_e.
-        lv_string+lv_index(1) = 'E'.
-      ELSEIF lv_string+lv_index(1) CA lv_replace_by_i.
-        lv_string+lv_index(1) = 'I'.
-      ELSEIF lv_string+lv_index(1) CA lv_replace_by_o.
-        lv_string+lv_index(1) = 'O'.
-      ELSEIF lv_string+lv_index(1) CA lv_replace_by_u.
-        lv_string+lv_index(1) = 'U'.
-      ELSE.
-* character cannot be mapped to an allowed character or is not
-* in the list of allowed characters. It will be set to blank.
-        lv_string+lv_index(1) = ' '.
-      ENDIF.
-    ENDDO.
-
-    CONDENSE lv_string NO-GAPS.
-    rv_symbol = lv_string.
-  ENDMETHOD.
 
 
   METHOD apply_data_to_template.
@@ -522,6 +288,75 @@ CLASS zcl_ca_send_mail IMPLEMENTATION.
   ENDMETHOD.
 
 
+  METHOD constructor.
+    mv_langu = iv_langu.
+
+
+  ENDMETHOD.
+
+
+  METHOD generate_dynamic_symbol_table.
+    FIELD-SYMBOLS <ls_table_line> TYPE any.
+    FIELD-SYMBOLS <lt_table> TYPE INDEX TABLE.
+
+    FREE: eo_data_struct, eo_table_data.
+
+    TRY.
+        " Creamos una tabla interna  de simbolos pero quitando los carácteres especiales
+
+        DATA(lt_symbols) = VALUE zca_i_mail_template_symbols( FOR <wa> IN it_symbols ( symbol = remove_special_chars( <wa>-symbol )
+                                                                                       value = <wa>-value
+                                                                                       values_table = <wa>-values_table ) ).
+
+        " Paso 1: generamos la tabla de componentes:
+        DATA(lt_components) = VALUE cl_abap_structdescr=>component_table( FOR <wa> IN lt_symbols ( name = <wa>-symbol
+                                                                                                   type = cl_abap_elemdescr=>get_string( ) ) ).
+
+        " Paso 2 creamnos la estructura y la instanciamos:
+        DATA(lo_structdescr) = cl_abap_structdescr=>create( p_components = lt_components ).    " Component Table
+        CREATE DATA eo_data_struct TYPE HANDLE lo_structdescr.
+        ASSIGN eo_data_struct->* TO <ls_table_line>.
+
+        " Paso 3: rellenamos la estructura:
+        LOOP AT lt_symbols ASSIGNING FIELD-SYMBOL(<ls_symbol>).
+          ASSIGN COMPONENT <ls_symbol>-symbol OF STRUCTURE <ls_table_line> TO FIELD-SYMBOL(<lv_comp>).
+          IF sy-subrc EQ 0.
+            <lv_comp> = <ls_symbol>-value.
+          ENDIF.
+        ENDLOOP.
+
+        " Paso 4: Creamos la tabla interna
+        DATA(lo_tabledescr) = cl_abap_tabledescr=>create( p_line_type = lo_structdescr ).
+        CREATE DATA eo_table_data TYPE HANDLE lo_tabledescr.
+        ASSIGN eo_table_data->* TO <lt_table>.
+
+        " Paso 5: rellenamos la tabla interna:
+
+        LOOP AT it_symbols_in_table ASSIGNING FIELD-SYMBOL(<ls_symbols_in_table>).
+          APPEND INITIAL LINE TO <lt_table> ASSIGNING <ls_table_line>.
+
+          "   Buscamos los campos que vamos a informar para esta clave:
+          LOOP AT it_symbols ASSIGNING <ls_symbol>.
+
+
+            READ TABLE <ls_symbol>-values_table ASSIGNING FIELD-SYMBOL(<ls_tabla_valores>)
+              WITH KEY key = <ls_symbols_in_table>-key.
+            IF sy-subrc EQ 0.
+              ASSIGN COMPONENT <ls_symbol>-symbol OF STRUCTURE <ls_table_line> TO <lv_comp>.
+              IF sy-subrc EQ 0.
+                <lv_comp> = <ls_tabla_valores>-value.
+              ENDIF.
+            ENDIF.
+          ENDLOOP.
+
+
+        ENDLOOP.
+
+      CATCH cx_root.
+    ENDTRY.
+  ENDMETHOD.
+
+
   METHOD remove_html_comment.
     DATA: lv_pos_in              TYPE i,
           lv_pos_end             TYPE i,
@@ -548,6 +383,374 @@ CLASS zcl_ca_send_mail IMPLEMENTATION.
                                  off   = lv_pos_in
                                  len   = lv_pos_end ).
     ENDIF.
+  ENDMETHOD.
+
+
+  METHOD remove_special_chars.
+    DATA:
+      lv_allowed_char    TYPE char27,                       "#EC *
+      lv_replace_by_a(5) TYPE c VALUE 'ÄÀÂÃÁ',              "#EC *
+      lv_replace_by_e(4) TYPE c VALUE 'ËÈÊÉ',               "#EC *
+      lv_replace_by_i(4) TYPE c VALUE 'ÏÌÎÍ',               "#EC *
+      lv_replace_by_o(5) TYPE c VALUE 'ÖÒÔÕÓ',              "#EC *
+      lv_replace_by_u(4) TYPE c VALUE 'ÜÙÛÚ'.               "#EC *
+
+    DATA:
+      lv_string(1000) TYPE c,
+      lv_length       TYPE i,
+      lv_index        TYPE i.
+
+    CONSTANTS lc_numbers TYPE char10 VALUE '0123456789'.
+
+    lv_allowed_char = sy-abcde && '_'.
+    lv_string = iv_symbol.
+
+    TRANSLATE lv_string TO UPPER CASE.
+
+    lv_length = strlen( lv_string ).
+
+    IF lv_string(1) CA lc_numbers.
+      lv_string(1) = space.
+    ENDIF.
+
+    DO lv_length TIMES.
+      lv_index = sy-index - 1.
+
+      IF ( lv_string+lv_index(1) CA lv_allowed_char OR
+           lv_string+lv_index(1) CA lc_numbers ).
+
+        CONTINUE.
+      ENDIF.
+
+      IF lv_string+lv_index(1) CA lv_replace_by_a.
+        lv_string+lv_index(1) = 'A'.
+      ELSEIF lv_string+lv_index(1) CA lv_replace_by_e.
+        lv_string+lv_index(1) = 'E'.
+      ELSEIF lv_string+lv_index(1) CA lv_replace_by_i.
+        lv_string+lv_index(1) = 'I'.
+      ELSEIF lv_string+lv_index(1) CA lv_replace_by_o.
+        lv_string+lv_index(1) = 'O'.
+      ELSEIF lv_string+lv_index(1) CA lv_replace_by_u.
+        lv_string+lv_index(1) = 'U'.
+      ELSE.
+* character cannot be mapped to an allowed character or is not
+* in the list of allowed characters. It will be set to blank.
+        lv_string+lv_index(1) = ' '.
+      ENDIF.
+    ENDDO.
+
+    CONDENSE lv_string NO-GAPS.
+    rv_symbol = lv_string.
+  ENDMETHOD.
+
+
+  METHOD replace_symbols_in_table.
+    FIELD-SYMBOLS <lt_table_data> TYPE INDEX TABLE.
+
+    DATA lv_initial_html_string TYPE string.
+    DATA lv_result_html_string  TYPE string.
+    DATA lo_table_data          TYPE REF TO data.
+    DATA lo_symbols            TYPE REF TO data.
+
+    " Se concatena todos el cuerpo en una sola variable
+    CONCATENATE LINES OF ct_body INTO lv_initial_html_string RESPECTING BLANKS.
+
+    "  Creamos una tabla interna con los simbolos a insertar, y una estructura con los datos genericos
+
+    " Creamos una tabla interna con los simbolos a insertar, y una estructura con los datos genericos
+    generate_dynamic_symbol_table( EXPORTING it_symbols   = it_symbols
+                                             it_symbols_in_table       = it_symbols_in_table
+                                   IMPORTING eo_table_data  = lo_symbols
+                                             eo_data_struct = lo_table_data ).
+
+    ASSIGN: lo_table_data->* TO <lt_table_data>,
+            lo_symbols->*   TO FIELD-SYMBOL(<ls_simbolos>).
+
+    IF <lt_table_data> IS ASSIGNED AND <ls_simbolos> IS ASSIGNED.
+      lv_result_html_string = apply_data_to_template( iv_html_string  = lv_initial_html_string
+                                                      it_data         = <lt_table_data>
+                                                      is_general_data = <ls_simbolos> ).
+    ENDIF.
+
+    SPLIT lv_result_html_string AT cl_abap_char_utilities=>cr_lf INTO TABLE ct_body.
+
+  ENDMETHOD.
+
+
+  METHOD send.
+
+    CLEAR: es_return.
+
+    mv_subject = iv_subject. " Se guarda el asunto
+
+    " El cuerpo se parte en línea si tienes carácteres de salto de línea
+    SPLIT iv_body AT cl_abap_char_utilities=>cr_lf INTO TABLE mt_body.
+
+    " Se hace lo mismo con la firma, si esta informada.
+    SPLIT iv_signature AT cl_abap_char_utilities=>cr_lf INTO TABLE DATA(lt_signature).
+
+    " Se añade la firma al cuerpo
+    LOOP AT lt_signature ASSIGNING FIELD-SYMBOL(<ls_signature>).
+      INSERT <ls_signature> INTO TABLE mt_body.
+    ENDLOOP.
+
+    " En modo previsualización se construye el asunto y cuerpo y se devuelve sus textos. En modo
+    " normal se hace el mail pero enviandolo.
+    IF iv_preview = abap_false.
+      TRY.
+
+          " Instancia de la clase de mail
+          mo_mail = cl_bcs=>create_persistent( ).
+
+          " Se añaden los destinatarios del mail
+          set_recipientes( EXPORTING it_recipients     = it_recipients
+                                     it_recipients_cc  = it_recipients_cc
+                                     it_recipients_bcc = it_recipients_bcc
+                           IMPORTING es_return         = es_return ).
+
+          " Destinatario
+          IF iv_sender IS NOT INITIAL.
+            set_sender( iv_sender ).
+          ENDIF.
+
+          IF iv_replyto IS NOT INITIAL.
+            set_replyto( iv_replyto ).
+          ENDIF.
+
+          " Si hay imagenes el cuerpo y asunto se añadirán de manera a distinta que si no hubiera
+          IF it_images IS NOT INITIAL.
+            " Primero se pasan a la imagenes
+            set_images( it_images ).
+
+
+          ELSE.
+            set_subject_body( EXPORTING it_symbols = it_symbols
+                                          it_symbols_in_table = it_symbols_in_table
+                                IMPORTING es_return = es_return ).
+          ENDIF.
+
+          IF es_return IS INITIAL.
+
+          ENDIF.
+
+
+        CATCH cx_root.
+          es_return = zcl_ca_utilities=>fill_return( iv_type       = zif_ca_mail_data=>cs_message-error
+                                                     iv_id         = zif_ca_mail_data=>cs_message-id
+                                                     iv_number     = '002' " Error al enviar mail
+                                                     iv_langu      = mv_langu ).
+      ENDTRY.
+
+    ELSE.
+      set_subject_body( EXPORTING it_symbols = it_symbols
+                                    it_symbols_in_table = it_symbols_in_table
+                          IMPORTING es_return = es_return ).
+    ENDIF.
+
+  ENDMETHOD.
+
+
+  METHOD send_with_template.
+  ENDMETHOD.
+
+
+  METHOD set_recipientes.
+
+
+
+    IF it_recipients IS NOT INITIAL.
+
+      LOOP AT it_recipients  ASSIGNING FIELD-SYMBOL(<ls_receivers>).
+        TRY.
+            mo_mail->add_recipient( i_recipient = cl_cam_address_bcs=>create_internet_address( <ls_receivers> )
+                                    i_express = abap_true ).
+
+          CATCH cx_root .
+        ENDTRY.
+      ENDLOOP.
+    ENDIF.
+
+    IF it_recipients_cc IS NOT INITIAL.
+
+      LOOP AT it_recipients_cc  ASSIGNING <ls_receivers>.
+        TRY.
+            mo_mail->add_recipient( i_recipient = cl_cam_address_bcs=>create_internet_address( <ls_receivers> )
+                                    i_copy = abap_true
+                                    i_express = abap_true ).
+
+          CATCH cx_root .
+        ENDTRY.
+      ENDLOOP.
+    ENDIF.
+
+    IF it_recipients_bcc IS NOT INITIAL.
+
+      LOOP AT it_recipients_bcc  ASSIGNING <ls_receivers>.
+        TRY.
+            mo_mail->add_recipient( i_recipient = cl_cam_address_bcs=>create_internet_address( <ls_receivers> )
+                                    i_blind_copy = abap_true
+                                    i_express = abap_true ).
+
+          CATCH cx_root .
+        ENDTRY.
+      ENDLOOP.
+    ENDIF.
+  ENDMETHOD.
+
+
+  METHOD set_replyto.
+    TRY.
+
+        mo_mail->set_reply_to( i_reply_to =  cl_cam_address_bcs=>create_internet_address( iv_replyto ) ).
+
+      CATCH cx_root .
+    ENDTRY.
+  ENDMETHOD.
+
+
+  METHOD set_sender.
+
+    TRY.
+
+        mo_mail->set_sender( i_sender =  cl_cam_address_bcs=>create_internet_address( iv_sender ) ).
+
+      CATCH cx_root .
+    ENDTRY.
+  ENDMETHOD.
+
+
+  METHOD set_subject_body.
+    DATA lt_body_mail TYPE bcsy_text.
+
+    CLEAR: es_return.
+
+    " Se sustituye los simbols en la variable del asunto y del cuerpo. En el caso del cuerpo solo se hace si la
+    " tabla de simbolos en tabla no esta informada
+* Recorro los simbolos para ir reemplazandolos en el asunto y cuerpo.
+    LOOP AT it_symbols ASSIGNING FIELD-SYMBOL(<ls_symbol>).
+      REPLACE ALL OCCURRENCES OF <ls_symbol>-symbol IN mv_subject WITH <ls_symbol>-value.
+      IF it_symbols_in_table IS INITIAL.
+        REPLACE ALL OCCURRENCES OF <ls_symbol>-symbol IN TABLE mt_body WITH <ls_symbol>-value.
+      ENDIF.
+    ENDLOOP.
+
+    "  Nueva rutina para cambiar las claves en el cuerpo para insertar tablas:
+    IF it_symbols_in_table IS NOT INITIAL.
+      TRY.
+          replace_symbols_in_table( EXPORTING it_symbols = it_symbols
+                                          it_symbols_in_table     = it_symbols_in_table
+                                 CHANGING ct_body      = mt_body ).
+        CATCH cx_root.
+          es_return = zcl_ca_utilities=>fill_return( iv_type       = zif_ca_mail_data=>cs_message-error
+                                                     iv_id         = zif_ca_mail_data=>cs_message-id
+                                                     iv_number     = '001' " Error al construir el cuerpo del mail
+                                                     iv_langu      = mv_langu ).
+      ENDTRY.
+    ENDIF.
+
+    IF es_return IS INITIAL. " Sin errores se continua el proceso
+
+      " Se adapta la tabla con el cuerpo al formato de la tabla internal del BCS
+      LOOP AT mt_body ASSIGNING FIELD-SYMBOL(<ls_body>).
+        DATA(lt_mail_tmp) = cl_bcs_convert=>string_to_soli( <ls_body> ).
+        INSERT LINES OF lt_mail_tmp INTO TABLE lt_body_mail.
+        CLEAR lt_mail_tmp.
+      ENDLOOP.
+
+      " Se pasa el asunto
+      DATA(lv_subject_mail) = CONV so_obj_des( mv_subject ).
+
+      TRY.
+          mo_doc_bcs = cl_document_bcs=>create_document( i_type = zif_ca_mail_data=>cs_mail-type-html
+                                                         i_text = lt_body_mail
+                                                         i_subject = lv_subject_mail ).
+        CATCH cx_root.
+
+          es_return = zcl_ca_utilities=>fill_return( iv_type       = zif_ca_mail_data=>cs_message-error
+                                                     iv_id         = zif_ca_mail_data=>cs_message-id
+                                                     iv_number     = '002' " Error al enviar mail
+                                                     iv_langu      = mv_langu ).
+      ENDTRY.
+
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD set_images.
+ DATA: lo_mime_api    TYPE REF TO if_mr_api,
+        ls_folder      TYPE boole_d,
+        lv_content     TYPE xstring,
+        lv_xstring     TYPE xstring,
+        lv_loio        TYPE skwf_io,
+        lv_offset      TYPE so_obj_len,
+        lv_dif         TYPE so_obj_len,
+        lv_length_255  TYPE so_obj_len,
+        lt_solix       TYPE solix_tab,
+        ls_solix       TYPE solix,
+        lv_content_type TYPE w3conttype,
+        lv_filename    TYPE mime_text,
+        lv_length      TYPE so_obj_len,
+        lv_content_id  TYPE mime_cntid.
+
+
+  lo_mime_api = cl_mime_repository_api=>if_mr_api~get_api( ).
+  CREATE OBJECT mo_mime_helper.
+
+  "Se añaden las imágenes
+  LOOP AT it_images ASSIGNING FIELD-SYMBOL(<fs_img>).
+
+    CALL METHOD lo_mime_api->get
+      EXPORTING
+        i_url              = <fs_img>-url
+      IMPORTING
+        e_is_folder        = ls_folder
+        e_content          = lv_content
+        e_loio             = lv_loio
+      EXCEPTIONS
+        parameter_missing  = 1
+        error_occured      = 2
+        not_found          = 3
+        permission_failure = 4
+        OTHERS             = 5.
+
+    "Se trata la imagen para añadirla al mail
+    CLEAR: lv_length, lv_xstring.
+    lv_length = xstrlen( lv_content ).
+    lv_xstring = lv_content(lv_length).
+
+    lv_offset = 0.
+    lv_length_255 = 255.
+
+    REFRESH lt_solix.
+    WHILE lv_offset < lv_length.
+      lv_dif = lv_length - lv_offset.
+
+      CLEAR ls_solix.
+      IF lv_dif > lv_length_255.
+        ls_solix-line = lv_xstring+lv_offset(lv_length_255).
+      ELSE.
+        ls_solix-line = lv_xstring+lv_offset(lv_dif).
+      ENDIF.
+
+      APPEND ls_solix TO lt_solix.
+      ADD lv_length_255 TO lv_offset.
+    ENDWHILE.
+
+    CLEAR: lv_content_type, lv_content_id, lv_filename.
+    lv_content_type = <fs_img>-mimetype.
+    lv_filename = <fs_img>-image_id.
+    lv_content_id = <fs_img>-image_id.
+
+    mo_mime_helper->add_binary_part(
+      EXPORTING
+        content      = lt_solix     " Objcont and Objhead as Table Type
+        filename     = lv_filename    " File Name (Proposal Only)
+        extension    = 'JPG'    " File extension for PC application
+        content_type = lv_content_type    " HTML content type
+        length       = lv_length    " Size of Document Content
+        content_id   = lv_content_id    " BCOM: Bodypart Content ID
+    ).
+
+  ENDLOOP.
   ENDMETHOD.
 
 ENDCLASS.
