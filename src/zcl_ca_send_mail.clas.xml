@@ -14,9 +14,15 @@
    <DESCRIPTIONS>
     <SEOCOMPOTX>
      <CLSNAME>ZCL_CA_SEND_MAIL</CLSNAME>
+     <CMPNAME>REPLACE_SYMBOLS_IN_TABLE</CMPNAME>
+     <LANGU>E</LANGU>
+     <DESCRIPT>Replace normal symbols and symbols in table</DESCRIPT>
+    </SEOCOMPOTX>
+    <SEOCOMPOTX>
+     <CLSNAME>ZCL_CA_SEND_MAIL</CLSNAME>
      <CMPNAME>SEND</CMPNAME>
      <LANGU>E</LANGU>
-     <DESCRIPT>Send mail</DESCRIPT>
+     <DESCRIPT>Send mail without template</DESCRIPT>
     </SEOCOMPOTX>
     <SEOCOMPOTX>
      <CLSNAME>ZCL_CA_SEND_MAIL</CLSNAME>
@@ -29,6 +35,12 @@
      <CMPNAME>SET_SENDER</CMPNAME>
      <LANGU>E</LANGU>
      <DESCRIPT>Set sender to the mail</DESCRIPT>
+    </SEOCOMPOTX>
+    <SEOCOMPOTX>
+     <CLSNAME>ZCL_CA_SEND_MAIL</CLSNAME>
+     <CMPNAME>SET_SUBJECT_BODY</CMPNAME>
+     <LANGU>E</LANGU>
+     <DESCRIPT>Set the subject and body</DESCRIPT>
     </SEOCOMPOTX>
    </DESCRIPTIONS>
   </asx:values>

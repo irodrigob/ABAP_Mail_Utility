@@ -27,6 +27,29 @@ CLASS zcl_ca_send_mail DEFINITION
         !es_return           TYPE bapiret2
         !ev_internal_mail_id TYPE char100 .
 
+    "! <p class="shorttext synchronized" lang="en">Send mail without template</p>
+    "!
+    "! @parameter it_images | <p class="shorttext synchronized" lang="en">Images that are embedded in the body</p>
+    "! @parameter it_attachs | <p class="shorttext synchronized" lang="en">Attachs</p>
+    "! @parameter it_recipients | <p class="shorttext synchronized" lang="en">Recipients</p>
+    "! @parameter it_recipients_cc | <p class="shorttext synchronized" lang="en">Recipients in copy</p>
+    "! @parameter it_recipients_bcc | <p class="shorttext synchronized" lang="en">Recipients in hidden copy</p>
+    "! @parameter iv_sender | <p class="shorttext synchronized" lang="en">Sender</p>
+    "! @parameter it_symbols | <p class="shorttext synchronized" lang="en">Normal symbols that are replaced in the subject and body</p>
+    "! @parameter it_symbols_in_table | <p class="shorttext synchronized" lang="en">Symbols that are replaced in the body to build HTML tables</p>
+    "! @parameter iv_request_lecture | <p class="shorttext synchronized" lang="en">Request lecture</p>
+    "! @parameter iv_commit | <p class="shorttext synchronized" lang="en">Commit after send mail</p>
+    "! @parameter iv_replyto | <p class="shorttext synchronized" lang="en">Reply-to</p>
+    "! @parameter iv_appl | <p class="shorttext synchronized" lang="en">Appl¿?</p>
+    "! @parameter iv_set_long_subjet | <p class="shorttext synchronized" lang="en">The subject exceeded 50 characters</p>
+    "! @parameter iv_body | <p class="shorttext synchronized" lang="en">Body</p>
+    "! @parameter iv_subject | <p class="shorttext synchronized" lang="en">Subject</p>
+    "! @parameter iv_signature | <p class="shorttext synchronized" lang="en">Signature</p>
+    "! @parameter iv_preview | <p class="shorttext synchronized" lang="en">Preview</p>
+    "! @parameter es_return | <p class="shorttext synchronized" lang="en"Proces return</p>
+    "! @parameter ev_internal_mail_id | <p class="shorttext synchronized" lang="en">Internal ID of mail</p>
+    "! @parameter ev_body | <p class="shorttext synchronized" lang="en">Body with the symbols already replaced</p>
+    "! @parameter ev_subject | <p class="shorttext synchronized" lang="en">Subject with the symbols already replaced</p>
     METHODS send
       IMPORTING
         !it_images           TYPE zca_i_mail_images OPTIONAL
@@ -48,7 +71,9 @@ CLASS zcl_ca_send_mail DEFINITION
         !iv_preview          TYPE sap_bool DEFAULT abap_false
       EXPORTING
         !es_return           TYPE bapiret2
-        !ev_internal_mail_id TYPE char100 .
+        !ev_internal_mail_id TYPE char100
+        !ev_body             TYPE string
+        !ev_subject          TYPE string .
 
   PROTECTED SECTION.
 
@@ -62,12 +87,23 @@ CLASS zcl_ca_send_mail DEFINITION
 *  data mO_PLANTILLA type ref to ZCL_CA_PLANTILLA_MAIL .
     DATA mo_mime_helper TYPE REF TO cl_gbt_multirelated_service .
 
+    "! <p class="shorttext synchronized" lang="en">Set the subject and body</p>
+    "! Set the subject and body. Replacing the symbols that are passed by parameter
+    "! @parameter it_symbols | <p class="shorttext synchronized" lang="en"></p>
+    "! @parameter it_symbols_in_table | <p class="shorttext synchronized" lang="en"></p>
+    "! @parameter es_return | <p class="shorttext synchronized" lang="en"></p>
     METHODS set_subject_body
       IMPORTING
         it_symbols          TYPE zca_i_mail_template_symbols OPTIONAL
         it_symbols_in_table TYPE zca_i_mail_table_symbols_value OPTIONAL
       EXPORTING
         es_return           TYPE bapiret2.
+
+    "! <p class="shorttext synchronized" lang="en">Replace normal symbols and symbols in table</p>
+    "! Replace normal symbols and symbols to build HTML tables
+    "! @parameter it_symbols | <p class="shorttext synchronized" lang="en"></p>
+    "! @parameter it_symbols_in_table | <p class="shorttext synchronized" lang="en"></p>
+    "! @parameter ct_body | <p class="shorttext synchronized" lang="en"></p>
     METHODS replace_symbols_in_table
       IMPORTING
         it_symbols          TYPE zca_i_mail_template_symbols
@@ -118,6 +154,34 @@ CLASS zcl_ca_send_mail DEFINITION
     METHODS set_images
       IMPORTING
         it_images TYPE zca_i_mail_images.
+    METHODS set_subject_body_with_mail
+      IMPORTING
+        it_images           TYPE zca_i_mail_images
+        it_symbols          TYPE zca_i_mail_template_symbols
+        it_symbols_in_table TYPE zca_i_mail_table_symbols_value
+      EXPORTING
+        es_return           TYPE bapiret2.
+    METHODS replace_symbols_body_subject
+      IMPORTING
+        it_symbols          TYPE zca_i_mail_template_symbols
+        it_symbols_in_table TYPE zca_i_mail_table_symbols_value
+      EXPORTING
+        es_return           TYPE bapiret2.
+    METHODS convert_body_2_bcs
+      RETURNING
+        VALUE(rt_body) TYPE bcsy_text.
+    METHODS convert_subject_2_bcs
+      RETURNING
+        VALUE(rv_subject) TYPE so_obj_des.
+    METHODS set_attachs
+      IMPORTING
+        it_attachs TYPE zca_i_mail_attach
+      EXPORTING
+        es_return  TYPE bapiret2.
+    METHODS set_attributes.
+    METHODS get_internal_mail_id
+      EXPORTING
+        ev_internal_mail_id TYPE char100.
 
   PRIVATE SECTION.
 
@@ -479,7 +543,7 @@ CLASS zcl_ca_send_mail IMPLEMENTATION.
 
   METHOD send.
 
-    CLEAR: es_return.
+    CLEAR: es_return, ev_body, ev_internal_mail_id, ev_subject.
 
     mv_subject = iv_subject. " Se guarda el asunto
 
@@ -519,17 +583,64 @@ CLASS zcl_ca_send_mail IMPLEMENTATION.
 
           " Si hay imagenes el cuerpo y asunto se añadirán de manera a distinta que si no hubiera
           IF it_images IS NOT INITIAL.
-            " Primero se pasan a la imagenes
-            set_images( it_images ).
+
+            "Se añade el cuerpo, el asunto y las imágenes
+            set_subject_body_with_mail(
+              EXPORTING
+                it_images = it_images
+                it_symbols = it_symbols
+                it_symbols_in_table     = it_symbols_in_table
+              IMPORTING
+                es_return     = es_return ).
 
 
           ELSE.
+
             set_subject_body( EXPORTING it_symbols = it_symbols
                                           it_symbols_in_table = it_symbols_in_table
                                 IMPORTING es_return = es_return ).
           ENDIF.
 
-          IF es_return IS INITIAL.
+          IF es_return IS INITIAL. " Si no hay errores se continua
+
+            " Se informan los adjuntos
+            set_attachs( EXPORTING it_attachs = it_attachs
+                         IMPORTING es_return = es_return ).
+
+            IF es_return IS INITIAL.
+
+              " Se establecen los atributos generales del mail
+              set_attributes(  ).
+
+              " Se pasa al mail el asunto, cuerpo e imagenes
+              mo_mail->set_document( mo_doc_bcs ).
+
+              " Si he ha marcado el parámetro se informar el asunto del correocon un texto muy largo
+              IF iv_set_long_subjet EQ abap_true.
+                mo_mail->set_message_subject( mv_subject ).
+              ENDIF.
+
+              " Se indica si se quiere confirmación de lectura
+              IF iv_request_lecture EQ abap_false.
+                mo_mail->set_status_attributes( i_requested_status = zif_ca_mail_data=>cs_mail-send_confirmation-only_error  ).
+              ELSE.
+                mo_mail->set_status_attributes( i_requested_status = zif_ca_mail_data=>cs_mail-send_confirmation-read  ).
+              ENDIF.
+
+              DATA(lv_enviado) = mo_mail->send( i_with_error_screen = 'X' ).
+
+              IF iv_commit = abap_true.
+                COMMIT WORK AND WAIT.
+              ENDIF.
+
+
+              " Si se ha enviado y si se pasado el parámetro para saber el número interno se lanza el proceso para obtenerlo
+              IF lv_enviado = abap_true AND ev_internal_mail_id IS SUPPLIED.
+                get_internal_mail_id( IMPORTING ev_internal_mail_id = ev_internal_mail_id ).
+              ENDIF.
+
+
+            ENDIF.
 
           ENDIF.
 
@@ -545,6 +656,16 @@ CLASS zcl_ca_send_mail IMPLEMENTATION.
       set_subject_body( EXPORTING it_symbols = it_symbols
                                     it_symbols_in_table = it_symbols_in_table
                           IMPORTING es_return = es_return ).
+    ENDIF.
+
+    " Si se pasada el parámetro del cuerpo ya formateado, se pasa la variable global al parámetro
+    IF ev_body IS SUPPLIED.
+      CONCATENATE LINES OF mt_body INTO ev_body.
+    ENDIF.
+
+    " Lo mismo para el asunto
+    IF ev_subject IS SUPPLIED.
+      ev_subject = mv_subject.
     ENDIF.
 
   ENDMETHOD.
@@ -620,10 +741,149 @@ CLASS zcl_ca_send_mail IMPLEMENTATION.
 
 
   METHOD set_subject_body.
-    DATA lt_body_mail TYPE bcsy_text.
 
     CLEAR: es_return.
 
+
+    " Se reemplaza los simbolos en el cuerpo y asunto.
+    replace_symbols_body_subject( EXPORTING it_symbols = it_symbols
+                                            it_symbols_in_table = it_symbols_in_table
+                                  IMPORTING es_return = es_return ).
+
+
+    IF es_return IS INITIAL. " Sin errores se continua el proceso
+
+      TRY.
+          mo_doc_bcs = cl_document_bcs=>create_document( i_type = zif_ca_mail_data=>cs_mail-type-html
+                                                         i_text = convert_body_2_bcs( )
+                                                         i_subject = convert_subject_2_bcs(  ) ).
+        CATCH cx_root.
+
+          es_return = zcl_ca_utilities=>fill_return( iv_type       = zif_ca_mail_data=>cs_message-error
+                                                     iv_id         = zif_ca_mail_data=>cs_message-id
+                                                     iv_number     = '002' " Error al enviar mail
+                                                     iv_langu      = mv_langu ).
+      ENDTRY.
+
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD set_images.
+    DATA: lo_mime_api     TYPE REF TO if_mr_api,
+          ls_folder       TYPE boole_d,
+          lv_content      TYPE xstring,
+          lv_xstring      TYPE xstring,
+          lv_loio         TYPE skwf_io,
+          lv_offset       TYPE so_obj_len,
+          lv_dif          TYPE so_obj_len,
+          lv_length_255   TYPE so_obj_len,
+          lt_solix        TYPE solix_tab,
+          ls_solix        TYPE solix,
+          lv_content_type TYPE w3conttype,
+          lv_filename     TYPE mime_text,
+          lv_length       TYPE so_obj_len,
+          lv_content_id   TYPE mime_cntid.
+
+
+    lo_mime_api = cl_mime_repository_api=>if_mr_api~get_api( ).
+    CREATE OBJECT mo_mime_helper.
+
+    "Se añaden las imágenes
+    LOOP AT it_images ASSIGNING FIELD-SYMBOL(<fs_img>).
+
+      CALL METHOD lo_mime_api->get
+        EXPORTING
+          i_url              = <fs_img>-url
+        IMPORTING
+          e_is_folder        = ls_folder
+          e_content          = lv_content
+          e_loio             = lv_loio
+        EXCEPTIONS
+          parameter_missing  = 1
+          error_occured      = 2
+          not_found          = 3
+          permission_failure = 4
+          OTHERS             = 5.
+
+      "Se trata la imagen para añadirla al mail
+      CLEAR: lv_length, lv_xstring.
+      lv_length = xstrlen( lv_content ).
+      lv_xstring = lv_content(lv_length).
+
+      lv_offset = 0.
+      lv_length_255 = 255.
+
+      REFRESH lt_solix.
+      WHILE lv_offset < lv_length.
+        lv_dif = lv_length - lv_offset.
+
+        CLEAR ls_solix.
+        IF lv_dif > lv_length_255.
+          ls_solix-line = lv_xstring+lv_offset(lv_length_255).
+        ELSE.
+          ls_solix-line = lv_xstring+lv_offset(lv_dif).
+        ENDIF.
+
+        APPEND ls_solix TO lt_solix.
+        ADD lv_length_255 TO lv_offset.
+      ENDWHILE.
+
+      CLEAR: lv_content_type, lv_content_id, lv_filename.
+      lv_content_type = <fs_img>-mimetype.
+      lv_filename = <fs_img>-image_id.
+      lv_content_id = <fs_img>-image_id.
+
+      mo_mime_helper->add_binary_part(
+        EXPORTING
+          content      = lt_solix     " Objcont and Objhead as Table Type
+          filename     = lv_filename    " File Name (Proposal Only)
+          extension    = 'JPG'    " File extension for PC application
+          content_type = lv_content_type    " HTML content type
+          length       = lv_length    " Size of Document Content
+          content_id   = lv_content_id    " BCOM: Bodypart Content ID
+      ).
+
+    ENDLOOP.
+  ENDMETHOD.
+
+
+  METHOD set_subject_body_with_mail.
+
+    " Las imagenes se guarda en un objeto MIME para luego añadir el cuerpo del mensaje
+    set_images( it_images ).
+
+    " Se reemplaza los simbolos en el cuerpo y asunto.
+    replace_symbols_body_subject( EXPORTING it_symbols = it_symbols
+                                            it_symbols_in_table = it_symbols_in_table
+                                  IMPORTING es_return = es_return ).
+    IF es_return IS INITIAL.
+
+      " Se pasa el cuerpo al MIME
+      CALL METHOD mo_mime_helper->set_main_html
+        EXPORTING
+          content = convert_body_2_bcs( ).
+
+      " Se crea el objecto BCS pasando el cuerpo + el asunto
+      TRY.
+
+          mo_doc_bcs = cl_document_bcs=>create_from_multirelated(
+              i_subject          = convert_subject_2_bcs( )
+              i_multirel_service = mo_mime_helper ).
+
+        CATCH cx_root.
+
+          es_return = zcl_ca_utilities=>fill_return( iv_type       = zif_ca_mail_data=>cs_message-error
+                                                     iv_id         = zif_ca_mail_data=>cs_message-id
+                                                     iv_number     = '002' " Error al enviar mail
+                                                     iv_langu      = mv_langu ).
+      ENDTRY.
+
+    ENDIF.
+
+  ENDMETHOD.
+
+
+  METHOD replace_symbols_body_subject.
     " Se sustituye los simbols en la variable del asunto y del cuerpo. En el caso del cuerpo solo se hace si la
     " tabla de simbolos en tabla no esta informada
 * Recorro los simbolos para ir reemplazandolos en el asunto y cuerpo.
@@ -647,110 +907,150 @@ CLASS zcl_ca_send_mail IMPLEMENTATION.
                                                      iv_langu      = mv_langu ).
       ENDTRY.
     ENDIF.
-
-    IF es_return IS INITIAL. " Sin errores se continua el proceso
-
-      " Se adapta la tabla con el cuerpo al formato de la tabla internal del BCS
-      LOOP AT mt_body ASSIGNING FIELD-SYMBOL(<ls_body>).
-        DATA(lt_mail_tmp) = cl_bcs_convert=>string_to_soli( <ls_body> ).
-        INSERT LINES OF lt_mail_tmp INTO TABLE lt_body_mail.
-        CLEAR lt_mail_tmp.
-      ENDLOOP.
-
-      " Se pasa el asunto
-      DATA(lv_subject_mail) = CONV so_obj_des( mv_subject ).
-
-      TRY.
-          mo_doc_bcs = cl_document_bcs=>create_document( i_type = zif_ca_mail_data=>cs_mail-type-html
-                                                         i_text = lt_body_mail
-                                                         i_subject = lv_subject_mail ).
-        CATCH cx_root.
-
-          es_return = zcl_ca_utilities=>fill_return( iv_type       = zif_ca_mail_data=>cs_message-error
-                                                     iv_id         = zif_ca_mail_data=>cs_message-id
-                                                     iv_number     = '002' " Error al enviar mail
-                                                     iv_langu      = mv_langu ).
-      ENDTRY.
-
-    ENDIF.
   ENDMETHOD.
 
-  METHOD set_images.
- DATA: lo_mime_api    TYPE REF TO if_mr_api,
-        ls_folder      TYPE boole_d,
-        lv_content     TYPE xstring,
-        lv_xstring     TYPE xstring,
-        lv_loio        TYPE skwf_io,
-        lv_offset      TYPE so_obj_len,
-        lv_dif         TYPE so_obj_len,
-        lv_length_255  TYPE so_obj_len,
-        lt_solix       TYPE solix_tab,
-        ls_solix       TYPE solix,
-        lv_content_type TYPE w3conttype,
-        lv_filename    TYPE mime_text,
-        lv_length      TYPE so_obj_len,
-        lv_content_id  TYPE mime_cntid.
+
+  METHOD convert_body_2_bcs.
+    CLEAR rt_body.
+
+    " Se adapta la tabla con el cuerpo al formato de la tabla internal del BCS
+    LOOP AT mt_body ASSIGNING FIELD-SYMBOL(<ls_body>).
+      DATA(lt_mail_tmp) = cl_bcs_convert=>string_to_soli( <ls_body> ).
+      INSERT LINES OF lt_mail_tmp INTO TABLE rt_body.
+      CLEAR lt_mail_tmp.
+    ENDLOOP.
+
+  ENDMETHOD.
 
 
-  lo_mime_api = cl_mime_repository_api=>if_mr_api~get_api( ).
-  CREATE OBJECT mo_mime_helper.
+  METHOD convert_subject_2_bcs.
 
-  "Se añaden las imágenes
-  LOOP AT it_images ASSIGNING FIELD-SYMBOL(<fs_img>).
+    rv_subject = mv_subject.
 
-    CALL METHOD lo_mime_api->get
-      EXPORTING
-        i_url              = <fs_img>-url
-      IMPORTING
-        e_is_folder        = ls_folder
-        e_content          = lv_content
-        e_loio             = lv_loio
-      EXCEPTIONS
-        parameter_missing  = 1
-        error_occured      = 2
-        not_found          = 3
-        permission_failure = 4
-        OTHERS             = 5.
+  ENDMETHOD.
 
-    "Se trata la imagen para añadirla al mail
-    CLEAR: lv_length, lv_xstring.
-    lv_length = xstrlen( lv_content ).
-    lv_xstring = lv_content(lv_length).
 
-    lv_offset = 0.
-    lv_length_255 = 255.
+  METHOD set_attachs.
 
-    REFRESH lt_solix.
-    WHILE lv_offset < lv_length.
-      lv_dif = lv_length - lv_offset.
+    CLEAR: es_return.
 
-      CLEAR ls_solix.
-      IF lv_dif > lv_length_255.
-        ls_solix-line = lv_xstring+lv_offset(lv_length_255).
-      ELSE.
-        ls_solix-line = lv_xstring+lv_offset(lv_dif).
+    LOOP AT it_attachs ASSIGNING FIELD-SYMBOL(<ls_adjuntos>) WHERE content_bin IS NOT INITIAL.
+
+
+      DATA(lv_length) = xstrlen( <ls_adjuntos>-content_bin ).
+      DATA(lv_so_len) = CONV so_obj_len( lv_length ).
+      DATA(lt_solix) = cl_bcs_convert=>xstring_to_solix( <ls_adjuntos>-content_bin ).
+      TRY.
+          CALL METHOD mo_doc_bcs->add_attachment
+            EXPORTING
+              i_attachment_type    = 'BIN'
+              i_attachment_subject = <ls_adjuntos>-name
+              i_att_content_hex    = lt_solix
+              i_attachment_size    = lv_so_len.
+        CATCH cx_root.
+          es_return = zcl_ca_utilities=>fill_return( iv_type       = zif_ca_mail_data=>cs_message-error
+                                                       iv_id         = zif_ca_mail_data=>cs_message-id
+                                                       iv_number     = '002' " Error al enviar mail
+                                                       iv_langu      = mv_langu ).
+      ENDTRY.
+      CLEAR: lt_solix, lv_length.
+
+    ENDLOOP.
+
+  ENDMETHOD.
+
+
+  METHOD set_attributes.
+    DATA lv_utc TYPE timestamp.
+    DATA lv_zone TYPE tznzone VALUE 'CET'.
+
+    TRY.
+* Fecha de caducidad. Se ha de pasar a timestamp para pasarlo a la clase.
+*      CONVERT DATE et_doc_data-expiry_dat INTO TIME STAMP ld_utc TIME ZONE ld_zone.
+*      mo_mail->set_expires_on( ld_utc ).
+
+        " Envio inmediato
+        mo_mail->set_send_immediately( abap_true ).
+
+        " Que se guarde la informe MIME, para poder reprocesar mail si hay imagenes.
+        mo_mail->set_keep_mime( abap_true ).
+
+      CATCH cx_bcs.
+    ENDTRY.
+  ENDMETHOD.
+
+
+  METHOD get_internal_mail_id.
+    DATA:
+      lv_string_mime TYPE string,
+      BEGIN OF ls_bcsd_envid,
+        mandt      TYPE bcsd_envid-mandt,
+        envid      TYPE bcsd_envid-envid,
+        message_id TYPE bcsd_envid-message_id,
+      END OF ls_bcsd_envid,
+      lv_request_id TYPE bcsd_envid-request_id,
+      lv_domain     TYPE sx_domain.
+
+*           Esperamos unos segundos:
+    DO 10 TIMES.
+
+      TRY.
+
+          IF mo_mail IS BOUND.
+
+            DATA(oid) = mo_mail->oid( ).
+
+            DATA(lo_mail) = cl_bcs=>get_instance_by_oid( oid ).
+            lo_mail->send_request->as_mime_message( EXPORTING do_not_create = abap_true
+                                                   IMPORTING mime_message  = DATA(lt_mime) ).
+
+            CALL FUNCTION 'CRM_IC_XML_XSTRING2STRING'
+              EXPORTING
+                inxstring = lt_mime
+              IMPORTING
+                outstring = lv_string_mime.
+
+            ev_internal_mail_id = substring_after(  val = lv_string_mime      sub  = |Message-ID: | ).
+            ev_internal_mail_id = substring_before( val = ev_internal_mail_id sub = cl_abap_char_utilities=>cr_lf ).
+
+            IF ev_internal_mail_id IS INITIAL.
+*                 Si no se encuentra, se intentara generar manualmente:
+              lv_request_id = oid.
+              SELECT mandt envid message_id                                                              "$sst: #601
+                INTO ls_bcsd_envid
+                FROM bcsd_envid UP TO 1 ROWS                                                             "$sst: #601
+               WHERE request_id EQ oid
+               ORDER BY PRIMARY KEY.                                                                     "$sst: #601
+              ENDSELECT.                                                                                 "$sst: #601
+              IF ls_bcsd_envid-message_id IS NOT INITIAL.                                                "$sst: #900
+                CALL FUNCTION 'SX_DEFAULT_INTERNET_DOMAIN_GET'
+                  IMPORTING
+                    domain             = lv_domain
+                  EXCEPTIONS
+                    err_domain_not_set = 1
+                    err_internal       = 2
+                    OTHERS             = 3.
+
+                ev_internal_mail_id = |<{ ls_bcsd_envid-message_id }{ ls_bcsd_envid-mandt }{ ls_bcsd_envid-envid }@{ lv_domain }>|.
+                "ELSE.                                                                                  "$sst: #900
+
+              ENDIF.
+            ENDIF.
+          ENDIF.
+
+        CATCH cx_root.
+      ENDTRY.
+
+      IF ev_internal_mail_id IS NOT INITIAL.
+        EXIT.
       ENDIF.
+      WAIT UP TO 1 SECONDS.
 
-      APPEND ls_solix TO lt_solix.
-      ADD lv_length_255 TO lv_offset.
-    ENDWHILE.
+    ENDDO.
 
-    CLEAR: lv_content_type, lv_content_id, lv_filename.
-    lv_content_type = <fs_img>-mimetype.
-    lv_filename = <fs_img>-image_id.
-    lv_content_id = <fs_img>-image_id.
-
-    mo_mime_helper->add_binary_part(
-      EXPORTING
-        content      = lt_solix     " Objcont and Objhead as Table Type
-        filename     = lv_filename    " File Name (Proposal Only)
-        extension    = 'JPG'    " File extension for PC application
-        content_type = lv_content_type    " HTML content type
-        length       = lv_length    " Size of Document Content
-        content_id   = lv_content_id    " BCOM: Bodypart Content ID
-    ).
-
-  ENDLOOP.
+    IF ev_internal_mail_id IS INITIAL.
+      ev_internal_mail_id = oid.
+    ENDIF.
   ENDMETHOD.
 
 ENDCLASS.

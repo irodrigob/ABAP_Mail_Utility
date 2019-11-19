@@ -23,6 +23,13 @@ INTERFACE zif_ca_mail_data
                  init_table   TYPE string VALUE '-&INIT_TABLE&-',
                  end_table    TYPE string VALUE '-&END_TABLE&-',
                END OF symbols,
+               BEGIN OF send_confirmation,
+                 only_error TYPE bcs_stml VALUE 'E',
+                 read       TYPE bcs_stml VALUE 'R',
+                 always     TYPE bcs_stml VALUE 'A',
+                 sent       TYPE bcs_stml VALUE 'D',
+                 never      TYPE bcs_stml VALUE 'N',
+               END OF send_confirmation,
              END OF cs_mail.
 
 ENDINTERFACE.
