@@ -26,6 +26,12 @@
      <MSGNR>002</MSGNR>
      <TEXT>Error to send the mail</TEXT>
     </T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZCA_MAIL</ARBGB>
+     <MSGNR>003</MSGNR>
+     <TEXT>The template doesn&apos;t exists</TEXT>
+    </T100>
    </T100>
   </asx:values>
  </asx:abap>

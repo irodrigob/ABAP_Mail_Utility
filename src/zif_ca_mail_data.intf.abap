@@ -16,12 +16,14 @@ INTERFACE zif_ca_mail_data
                  html TYPE so_obj_tp VALUE 'HTM',
                END OF type,
                BEGIN OF symbols,
-                 start_symbol TYPE string VALUE '-&',
-                 end_symbol   TYPE string VALUE '&-',
-                 search_data  TYPE string VALUE '-&.*&-',
-                 search_end   TYPE string VALUE '&-',
-                 init_table   TYPE string VALUE '-&INIT_TABLE&-',
-                 end_table    TYPE string VALUE '-&END_TABLE&-',
+                 start_symbol    TYPE string VALUE '-&',
+                 end_symbol      TYPE string VALUE '&-',
+                 search_data     TYPE string VALUE '-&.*&-',
+                 search_end      TYPE string VALUE '&-',
+                 init_table      TYPE string VALUE '-&INIT_TABLE&-',
+                 end_table       TYPE string VALUE '-&END_TABLE&-',
+                 amp_init_symbol TYPE string VALUE '-&amp;',
+                 amp_end_symbol  TYPE string VALUE '&amp;-',
                END OF symbols,
                BEGIN OF send_confirmation,
                  only_error TYPE bcs_stml VALUE 'E',
@@ -31,5 +33,10 @@ INTERFACE zif_ca_mail_data
                  never      TYPE bcs_stml VALUE 'N',
                END OF send_confirmation,
              END OF cs_mail.
+  CONSTANTS: BEGIN OF cs_datatypes,
+               BEGIN OF inttype,
+                 date TYPE inttype VALUE 'D',
+               END OF inttype,
+             END OF cs_datatypes.
 
 ENDINTERFACE.

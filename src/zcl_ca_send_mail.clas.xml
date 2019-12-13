@@ -38,9 +38,21 @@
     </SEOCOMPOTX>
     <SEOCOMPOTX>
      <CLSNAME>ZCL_CA_SEND_MAIL</CLSNAME>
+     <CMPNAME>SET_STRUCTURE_SYMBOLS</CMPNAME>
+     <LANGU>E</LANGU>
+     <DESCRIPT>Añade los elementos de una estructura a símbolos</DESCRIPT>
+    </SEOCOMPOTX>
+    <SEOCOMPOTX>
+     <CLSNAME>ZCL_CA_SEND_MAIL</CLSNAME>
      <CMPNAME>SET_SUBJECT_BODY</CMPNAME>
      <LANGU>E</LANGU>
      <DESCRIPT>Set the subject and body</DESCRIPT>
+    </SEOCOMPOTX>
+    <SEOCOMPOTX>
+     <CLSNAME>ZCL_CA_SEND_MAIL</CLSNAME>
+     <CMPNAME>SET_SYMBOLS_MAIL</CMPNAME>
+     <LANGU>E</LANGU>
+     <DESCRIPT>Incorpora los símbolos a una tabla tipo</DESCRIPT>
     </SEOCOMPOTX>
    </DESCRIPTIONS>
   </asx:values>

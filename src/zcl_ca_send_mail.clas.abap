@@ -1,32 +1,32 @@
-CLASS zcl_ca_send_mail DEFINITION
-  PUBLIC
-  FINAL
-  CREATE PUBLIC .
+class ZCL_CA_SEND_MAIL definition
+  public
+  final
+  create public .
 
-  PUBLIC SECTION.
+public section.
 
-
-
-    METHODS constructor
-      IMPORTING
-        iv_langu TYPE sylangu DEFAULT sy-langu.
-
-    METHODS send_with_template
-      IMPORTING
-        !it_attachs          TYPE zca_i_mail_attach OPTIONAL
-        !iv_template         TYPE zca_e_mail_template
-        !it_recipients       TYPE bcsy_smtpa
-        !iv_sender           TYPE ad_smtpadr OPTIONAL
-        !it_symbols          TYPE zca_i_mail_template_symbols OPTIONAL
-        !iv_request_lecture  TYPE sap_bool DEFAULT abap_false
-        !iv_commit           TYPE sap_bool DEFAULT abap_true
-        !iv_replyto          TYPE ad_smtpadr OPTIONAL
-        !iv_appl             TYPE any OPTIONAL
-        !iv_set_long_subjet  TYPE sap_bool DEFAULT abap_false
-      EXPORTING
-        !es_return           TYPE bapiret2
-        !ev_internal_mail_id TYPE char100 .
-
+  methods CONSTRUCTOR
+    importing
+      !IV_LANGU type SYLANGU default SY-LANGU .
+  methods SEND_WITH_TEMPLATE
+    importing
+      !IV_LANGU type SY-LANGU default SY-LANGU
+      !IT_ATTACHS type ZCA_I_MAIL_ATTACH optional
+      !IV_TEMPLATE type ZCA_E_TTEMPL_NAME
+      !IT_RECIPIENTS type BCSY_SMTPA
+      !IT_RECIPIENTS_CC type BCSY_SMTPA optional
+      !IT_RECIPIENTS_BCC type BCSY_SMTPA optional
+      !IV_SENDER type AD_SMTPADR optional
+      !IT_SYMBOLS type ZCA_I_MAIL_TEMPLATE_SYMBOLS optional
+      !IV_REQUEST_LECTURE type SAP_BOOL default ABAP_FALSE
+      !IV_COMMIT type SAP_BOOL default ABAP_TRUE
+      !IV_REPLYTO type AD_SMTPADR optional
+      !IV_APPL type ANY
+      !IV_SET_LONG_SUBJET type SAP_BOOL default ABAP_FALSE
+      !IT_IMAGES type ZCA_I_MAIL_IMAGES optional
+    exporting
+      !ES_RETURN type BAPIRET2
+      !EV_INTERNAL_MAIL_ID type CHAR100 .
     "! <p class="shorttext synchronized" lang="en">Send mail without template</p>
     "!
     "! @parameter it_images | <p class="shorttext synchronized" lang="en">Images that are embedded in the body</p>
@@ -50,31 +50,43 @@ CLASS zcl_ca_send_mail DEFINITION
     "! @parameter ev_internal_mail_id | <p class="shorttext synchronized" lang="en">Internal ID of mail</p>
     "! @parameter ev_body | <p class="shorttext synchronized" lang="en">Body with the symbols already replaced</p>
     "! @parameter ev_subject | <p class="shorttext synchronized" lang="en">Subject with the symbols already replaced</p>
-    METHODS send
-      IMPORTING
-        !it_images           TYPE zca_i_mail_images OPTIONAL
-        !it_attachs          TYPE zca_i_mail_attach OPTIONAL
-        !it_recipients       TYPE bcsy_smtpa
-        !it_recipients_cc    TYPE bcsy_smtpa OPTIONAL
-        !it_recipients_bcc   TYPE bcsy_smtpa OPTIONAL
-        !iv_sender           TYPE ad_smtpadr OPTIONAL
-        !it_symbols          TYPE zca_i_mail_template_symbols OPTIONAL
-        !it_symbols_in_table TYPE zca_i_mail_table_symbols_value OPTIONAL
-        !iv_request_lecture  TYPE sap_bool DEFAULT abap_false
-        !iv_commit           TYPE sap_bool DEFAULT abap_true
-        !iv_replyto          TYPE ad_smtpadr OPTIONAL
-        !iv_appl             TYPE any OPTIONAL
-        !iv_set_long_subjet  TYPE sap_bool DEFAULT abap_false
-        !iv_body             TYPE string
-        !iv_subject          TYPE string
-        !iv_signature        TYPE string OPTIONAL
-        !iv_preview          TYPE sap_bool DEFAULT abap_false
-      EXPORTING
-        !es_return           TYPE bapiret2
-        !ev_internal_mail_id TYPE char100
-        !ev_body             TYPE string
-        !ev_subject          TYPE string .
-
+  methods SEND
+    importing
+      !IT_IMAGES type ZCA_I_MAIL_IMAGES optional
+      !IT_ATTACHS type ZCA_I_MAIL_ATTACH optional
+      !IT_RECIPIENTS type BCSY_SMTPA
+      !IT_RECIPIENTS_CC type BCSY_SMTPA optional
+      !IT_RECIPIENTS_BCC type BCSY_SMTPA optional
+      !IV_SENDER type AD_SMTPADR optional
+      !IT_SYMBOLS type ZCA_I_MAIL_TEMPLATE_SYMBOLS optional
+      !IT_SYMBOLS_IN_TABLE type ZCA_I_MAIL_TABLE_SYMBOLS_VALUE optional
+      !IV_REQUEST_LECTURE type SAP_BOOL default ABAP_FALSE
+      !IV_COMMIT type SAP_BOOL default ABAP_TRUE
+      !IV_REPLYTO type AD_SMTPADR optional
+      !IV_APPL type ANY optional
+      !IV_SET_LONG_SUBJET type SAP_BOOL default ABAP_FALSE
+      !IV_BODY type STRING
+      !IV_SUBJECT type STRING
+      !IV_SIGNATURE type STRING optional
+      !IV_PREVIEW type SAP_BOOL default ABAP_FALSE
+    exporting
+      !ES_RETURN type BAPIRET2
+      !EV_INTERNAL_MAIL_ID type CHAR100
+      !EV_BODY type STRING
+      !EV_SUBJECT type STRING .
+  class-methods SET_SYMBOLS_MAIL
+    importing
+      !IV_NAME type BSSTRING
+      !IV_TABLE_KEY type BSSTRING optional
+      !IV_VALUE type BSSTRING
+      !IV_TABLE type BOOLEAN_FLG default ABAP_FALSE
+    changing
+      !CT_SYMBOLS_MAIL type ZCA_I_MAIL_TEMPLATE_SYMBOLS .
+  class-methods SET_STRUCTURE_SYMBOLS
+    importing
+      !IS_STRUCTURE type ANY
+    changing
+      !CT_SYMBOLS_MAIL type ZCA_I_MAIL_TEMPLATE_SYMBOLS .
   PROTECTED SECTION.
 
     TYPES: tt_body TYPE STANDARD TABLE OF string WITH EMPTY KEY.
@@ -189,7 +201,7 @@ ENDCLASS.
 
 
 
-CLASS zcl_ca_send_mail IMPLEMENTATION.
+CLASS ZCL_CA_SEND_MAIL IMPLEMENTATION.
 
 
   METHOD apply_data_to_template.
@@ -359,6 +371,26 @@ CLASS zcl_ca_send_mail IMPLEMENTATION.
   ENDMETHOD.
 
 
+  METHOD convert_body_2_bcs.
+    CLEAR rt_body.
+
+    " Se adapta la tabla con el cuerpo al formato de la tabla internal del BCS
+    LOOP AT mt_body ASSIGNING FIELD-SYMBOL(<ls_body>).
+      DATA(lt_mail_tmp) = cl_bcs_convert=>string_to_soli( <ls_body> ).
+      INSERT LINES OF lt_mail_tmp INTO TABLE rt_body.
+      CLEAR lt_mail_tmp.
+    ENDLOOP.
+
+  ENDMETHOD.
+
+
+  METHOD convert_subject_2_bcs.
+
+    rv_subject = mv_subject.
+
+  ENDMETHOD.
+
+
   METHOD generate_dynamic_symbol_table.
     FIELD-SYMBOLS <ls_table_line> TYPE any.
     FIELD-SYMBOLS <lt_table> TYPE INDEX TABLE.
@@ -418,6 +450,80 @@ CLASS zcl_ca_send_mail IMPLEMENTATION.
 
       CATCH cx_root.
     ENDTRY.
+  ENDMETHOD.
+
+
+  METHOD get_internal_mail_id.
+    DATA:
+      lv_string_mime TYPE string,
+      BEGIN OF ls_bcsd_envid,
+        mandt      TYPE bcsd_envid-mandt,
+        envid      TYPE bcsd_envid-envid,
+        message_id TYPE bcsd_envid-message_id,
+      END OF ls_bcsd_envid,
+      lv_request_id TYPE bcsd_envid-request_id,
+      lv_domain     TYPE sx_domain.
+
+*           Esperamos unos segundos:
+    DO 10 TIMES.
+
+      TRY.
+
+          IF mo_mail IS BOUND.
+
+            DATA(oid) = mo_mail->oid( ).
+
+            DATA(lo_mail) = cl_bcs=>get_instance_by_oid( oid ).
+            lo_mail->send_request->as_mime_message( EXPORTING do_not_create = abap_true
+                                                   IMPORTING mime_message  = DATA(lt_mime) ).
+
+            CALL FUNCTION 'CRM_IC_XML_XSTRING2STRING'
+              EXPORTING
+                inxstring = lt_mime
+              IMPORTING
+                outstring = lv_string_mime.
+
+            ev_internal_mail_id = substring_after(  val = lv_string_mime      sub  = |Message-ID: | ).
+            ev_internal_mail_id = substring_before( val = ev_internal_mail_id sub = cl_abap_char_utilities=>cr_lf ).
+
+            IF ev_internal_mail_id IS INITIAL.
+*                 Si no se encuentra, se intentara generar manualmente:
+              lv_request_id = oid.
+              SELECT mandt envid message_id                                                              "$sst: #601
+                INTO ls_bcsd_envid
+                FROM bcsd_envid UP TO 1 ROWS                                                             "$sst: #601
+               WHERE request_id EQ oid
+               ORDER BY PRIMARY KEY.                                                                     "$sst: #601
+              ENDSELECT.                                                                                 "$sst: #601
+              IF ls_bcsd_envid-message_id IS NOT INITIAL.                                                "$sst: #900
+                CALL FUNCTION 'SX_DEFAULT_INTERNET_DOMAIN_GET'
+                  IMPORTING
+                    domain             = lv_domain
+                  EXCEPTIONS
+                    err_domain_not_set = 1
+                    err_internal       = 2
+                    OTHERS             = 3.
+
+                ev_internal_mail_id = |<{ ls_bcsd_envid-message_id }{ ls_bcsd_envid-mandt }{ ls_bcsd_envid-envid }@{ lv_domain }>|.
+                "ELSE.                                                                                  "$sst: #900
+
+              ENDIF.
+            ENDIF.
+          ENDIF.
+
+        CATCH cx_root.
+      ENDTRY.
+
+      IF ev_internal_mail_id IS NOT INITIAL.
+        EXIT.
+      ENDIF.
+      WAIT UP TO 1 SECONDS.
+
+    ENDDO.
+
+    IF ev_internal_mail_id IS INITIAL.
+      ev_internal_mail_id = oid.
+    ENDIF.
   ENDMETHOD.
 
 
@@ -508,6 +614,33 @@ CLASS zcl_ca_send_mail IMPLEMENTATION.
   ENDMETHOD.
 
 
+  METHOD replace_symbols_body_subject.
+    " Se sustituye los simbols en la variable del asunto y del cuerpo. En el caso del cuerpo solo se hace si la
+    " tabla de simbolos en tabla no esta informada
+* Recorro los simbolos para ir reemplazandolos en el asunto y cuerpo.
+    LOOP AT it_symbols ASSIGNING FIELD-SYMBOL(<ls_symbol>).
+      REPLACE ALL OCCURRENCES OF <ls_symbol>-symbol IN mv_subject WITH <ls_symbol>-value.
+      IF it_symbols_in_table IS INITIAL.
+        REPLACE ALL OCCURRENCES OF <ls_symbol>-symbol IN TABLE mt_body WITH <ls_symbol>-value.
+      ENDIF.
+    ENDLOOP.
+
+    "  Nueva rutina para cambiar las claves en el cuerpo para insertar tablas:
+    IF it_symbols_in_table IS NOT INITIAL.
+      TRY.
+          replace_symbols_in_table( EXPORTING it_symbols = it_symbols
+                                          it_symbols_in_table     = it_symbols_in_table
+                                 CHANGING ct_body      = mt_body ).
+        CATCH cx_root.
+          es_return = zcl_ca_utilities=>fill_return( iv_type       = zif_ca_mail_data=>cs_message-error
+                                                     iv_id         = zif_ca_mail_data=>cs_message-id
+                                                     iv_number     = '001' " Error al construir el cuerpo del mail
+                                                     iv_langu      = mv_langu ).
+      ENDTRY.
+    ENDIF.
+  ENDMETHOD.
+
+
   METHOD replace_symbols_in_table.
     FIELD-SYMBOLS <lt_table_data> TYPE INDEX TABLE.
 
@@ -552,6 +685,14 @@ CLASS zcl_ca_send_mail IMPLEMENTATION.
 
     " Se hace lo mismo con la firma, si esta informada.
     SPLIT iv_signature AT cl_abap_char_utilities=>cr_lf INTO TABLE DATA(lt_signature).
+
+    "Se reemplazan los caracteres extraños que añaden los editores HTML
+    REPLACE ALL OCCURRENCES OF: zif_ca_mail_data=>cs_mail-symbols-amp_init_symbol IN TABLE mt_body WITH zif_ca_mail_data=>cs_mail-symbols-start_symbol,
+                                zif_ca_mail_data=>cs_mail-symbols-amp_end_symbol  IN TABLE mt_body WITH zif_ca_mail_data=>cs_mail-symbols-end_symbol,
+                                zif_ca_mail_data=>cs_mail-symbols-amp_init_symbol IN mv_subject WITH zif_ca_mail_data=>cs_mail-symbols-start_symbol,
+                                zif_ca_mail_data=>cs_mail-symbols-amp_end_symbol  IN mv_subject WITH zif_ca_mail_data=>cs_mail-symbols-end_symbol,
+                                zif_ca_mail_data=>cs_mail-symbols-amp_init_symbol IN TABLE lt_signature WITH zif_ca_mail_data=>cs_mail-symbols-start_symbol,
+                                zif_ca_mail_data=>cs_mail-symbols-amp_end_symbol  IN TABLE lt_signature WITH zif_ca_mail_data=>cs_mail-symbols-end_symbol.
 
     " Se añade la firma al cuerpo
     LOOP AT lt_signature ASSIGNING FIELD-SYMBOL(<ls_signature>).
@@ -672,101 +813,131 @@ CLASS zcl_ca_send_mail IMPLEMENTATION.
 
 
   METHOD send_with_template.
-  ENDMETHOD.
+
+    DATA(lo_text_template) = NEW zcl_ca_text_template( ).
+
+    "Comprobar que existe la plantilla
+    IF lo_text_template->exist(
+                              iv_appl  = iv_appl
+                              iv_name  = iv_template
+                              iv_langu = iv_langu
+                          ) = abap_true.
+
+      "Se lee la plantilla
+      lo_text_template->read(
+        EXPORTING
+          iv_appl  = iv_appl
+          iv_name  = iv_template
+          iv_langu = iv_langu
+        IMPORTING
+          et_data  = DATA(lt_data)
+      ).
+
+      "Cuerpo
+      READ TABLE lt_data ASSIGNING FIELD-SYMBOL(<fs_data>)
+      WITH KEY langu = iv_langu
+               section = zif_ca_ttemplate_data=>cs_section-body.
+      IF sy-subrc EQ 0.
+        DATA(lv_body) = <fs_data>-content.
+      ENDIF.
+
+      "Asunto
+      READ TABLE lt_data ASSIGNING <fs_data>
+      WITH KEY langu = iv_langu
+               section = zif_ca_ttemplate_data=>cs_section-subject.
+      IF sy-subrc EQ 0.
+        DATA(lv_subject) = <fs_data>-content.
+      ENDIF.
+
+      send(
+        EXPORTING
+          it_images           = it_images
+          it_attachs          = it_attachs
+          it_recipients       = it_recipients
+          it_recipients_cc    = it_recipients_cc
+          it_recipients_bcc   = it_recipients_bcc
+          iv_sender           = iv_sender
+          it_symbols          = it_symbols
+*          it_symbols_in_table =
+          iv_request_lecture  = iv_request_lecture
+          iv_commit           = iv_commit
+          iv_replyto          = iv_replyto
+          iv_appl             = iv_appl
+          iv_set_long_subjet  = iv_set_long_subjet
+          iv_body             = lv_body
+          iv_subject          = lv_subject
+*          iv_signature        =
+*          iv_preview          = ABAP_FALSE
+        IMPORTING
+          es_return           = es_return
+*          ev_internal_mail_id =
+*          ev_body             =
+*          ev_subject          =
+      ).
 
 
-  METHOD set_recipientes.
+    ELSE.
 
+      es_return-id = zif_ca_mail_data=>cs_message-id.
+      es_return-number = 003.
+      es_return-type = zif_ca_mail_data=>cs_message-error.
+      MESSAGE e003(zca_mail) INTO es_return-message.
+*   The template doesn't exists
 
-
-    IF it_recipients IS NOT INITIAL.
-
-      LOOP AT it_recipients  ASSIGNING FIELD-SYMBOL(<ls_receivers>).
-        TRY.
-            mo_mail->add_recipient( i_recipient = cl_cam_address_bcs=>create_internet_address( <ls_receivers> )
-                                    i_express = abap_true ).
-
-          CATCH cx_root .
-        ENDTRY.
-      ENDLOOP.
     ENDIF.
 
-    IF it_recipients_cc IS NOT INITIAL.
-
-      LOOP AT it_recipients_cc  ASSIGNING <ls_receivers>.
-        TRY.
-            mo_mail->add_recipient( i_recipient = cl_cam_address_bcs=>create_internet_address( <ls_receivers> )
-                                    i_copy = abap_true
-                                    i_express = abap_true ).
-
-          CATCH cx_root .
-        ENDTRY.
-      ENDLOOP.
-    ENDIF.
-
-    IF it_recipients_bcc IS NOT INITIAL.
-
-      LOOP AT it_recipients_bcc  ASSIGNING <ls_receivers>.
-        TRY.
-            mo_mail->add_recipient( i_recipient = cl_cam_address_bcs=>create_internet_address( <ls_receivers> )
-                                    i_blind_copy = abap_true
-                                    i_express = abap_true ).
-
-          CATCH cx_root .
-        ENDTRY.
-      ENDLOOP.
-    ENDIF.
   ENDMETHOD.
 
 
-  METHOD set_replyto.
-    TRY.
-
-        mo_mail->set_reply_to( i_reply_to =  cl_cam_address_bcs=>create_internet_address( iv_replyto ) ).
-
-      CATCH cx_root .
-    ENDTRY.
-  ENDMETHOD.
-
-
-  METHOD set_sender.
-
-    TRY.
-
-        mo_mail->set_sender( i_sender =  cl_cam_address_bcs=>create_internet_address( iv_sender ) ).
-
-      CATCH cx_root .
-    ENDTRY.
-  ENDMETHOD.
-
-
-  METHOD set_subject_body.
+  METHOD set_attachs.
 
     CLEAR: es_return.
 
-
-    " Se reemplaza los simbolos en el cuerpo y asunto.
-    replace_symbols_body_subject( EXPORTING it_symbols = it_symbols
-                                            it_symbols_in_table = it_symbols_in_table
-                                  IMPORTING es_return = es_return ).
+    LOOP AT it_attachs ASSIGNING FIELD-SYMBOL(<ls_adjuntos>) WHERE content_bin IS NOT INITIAL.
 
 
-    IF es_return IS INITIAL. " Sin errores se continua el proceso
-
+      DATA(lv_length) = xstrlen( <ls_adjuntos>-content_bin ).
+      DATA(lv_so_len) = CONV so_obj_len( lv_length ).
+      DATA(lt_solix) = cl_bcs_convert=>xstring_to_solix( <ls_adjuntos>-content_bin ).
       TRY.
-          mo_doc_bcs = cl_document_bcs=>create_document( i_type = zif_ca_mail_data=>cs_mail-type-html
-                                                         i_text = convert_body_2_bcs( )
-                                                         i_subject = convert_subject_2_bcs(  ) ).
+          CALL METHOD mo_doc_bcs->add_attachment
+            EXPORTING
+              i_attachment_type    = 'BIN'
+              i_attachment_subject = <ls_adjuntos>-name
+              i_att_content_hex    = lt_solix
+              i_attachment_size    = lv_so_len.
         CATCH cx_root.
-
           es_return = zcl_ca_utilities=>fill_return( iv_type       = zif_ca_mail_data=>cs_message-error
-                                                     iv_id         = zif_ca_mail_data=>cs_message-id
-                                                     iv_number     = '002' " Error al enviar mail
-                                                     iv_langu      = mv_langu ).
+                                                       iv_id         = zif_ca_mail_data=>cs_message-id
+                                                       iv_number     = '002' " Error al enviar mail
+                                                       iv_langu      = mv_langu ).
       ENDTRY.
+      CLEAR: lt_solix, lv_length.
 
-    ENDIF.
+    ENDLOOP.
+
   ENDMETHOD.
+
+
+  METHOD set_attributes.
+    DATA lv_utc TYPE timestamp.
+    DATA lv_zone TYPE tznzone VALUE 'CET'.
+
+    TRY.
+* Fecha de caducidad. Se ha de pasar a timestamp para pasarlo a la clase.
+*      CONVERT DATE et_doc_data-expiry_dat INTO TIME STAMP ld_utc TIME ZONE ld_zone.
+*      mo_mail->set_expires_on( ld_utc ).
+
+        " Envio inmediato
+        mo_mail->set_send_immediately( abap_true ).
+
+        " Que se guarde la informe MIME, para poder reprocesar mail si hay imagenes.
+        mo_mail->set_keep_mime( abap_true ).
+
+      CATCH cx_bcs.
+    ENDTRY.
+  ENDMETHOD.
+
 
   METHOD set_images.
     DATA: lo_mime_api     TYPE REF TO if_mr_api,
@@ -847,6 +1018,155 @@ CLASS zcl_ca_send_mail IMPLEMENTATION.
   ENDMETHOD.
 
 
+  METHOD set_recipientes.
+
+
+
+    IF it_recipients IS NOT INITIAL.
+
+      LOOP AT it_recipients  ASSIGNING FIELD-SYMBOL(<ls_receivers>).
+        TRY.
+            mo_mail->add_recipient( i_recipient = cl_cam_address_bcs=>create_internet_address( <ls_receivers> )
+                                    i_express = abap_true ).
+
+          CATCH cx_root .
+        ENDTRY.
+      ENDLOOP.
+    ENDIF.
+
+    IF it_recipients_cc IS NOT INITIAL.
+
+      LOOP AT it_recipients_cc  ASSIGNING <ls_receivers>.
+        TRY.
+            mo_mail->add_recipient( i_recipient = cl_cam_address_bcs=>create_internet_address( <ls_receivers> )
+                                    i_copy = abap_true
+                                    i_express = abap_true ).
+
+          CATCH cx_root .
+        ENDTRY.
+      ENDLOOP.
+    ENDIF.
+
+    IF it_recipients_bcc IS NOT INITIAL.
+
+      LOOP AT it_recipients_bcc  ASSIGNING <ls_receivers>.
+        TRY.
+            mo_mail->add_recipient( i_recipient = cl_cam_address_bcs=>create_internet_address( <ls_receivers> )
+                                    i_blind_copy = abap_true
+                                    i_express = abap_true ).
+
+          CATCH cx_root .
+        ENDTRY.
+      ENDLOOP.
+    ENDIF.
+  ENDMETHOD.
+
+
+  METHOD set_replyto.
+    TRY.
+
+        mo_mail->set_reply_to( i_reply_to =  cl_cam_address_bcs=>create_internet_address( iv_replyto ) ).
+
+      CATCH cx_root .
+    ENDTRY.
+  ENDMETHOD.
+
+
+  METHOD set_sender.
+
+    TRY.
+
+        mo_mail->set_sender( i_sender =  cl_cam_address_bcs=>create_internet_address( iv_sender ) ).
+
+      CATCH cx_root .
+    ENDTRY.
+  ENDMETHOD.
+
+
+  METHOD set_structure_symbols.
+
+    DATA lo_str TYPE REF TO cl_abap_structdescr.
+    DATA lv_value_aux  TYPE c LENGTH 255.
+    DATA lv_value TYPE string.
+
+    "Se obtienen los componentes de la estrutura
+    lo_str ?= cl_abap_typedescr=>describe_by_data( is_structure ).
+    DATA(lt_comp) = lo_str->get_ddic_field_list( p_including_substructres = abap_true ).
+
+    "Por cada campo de la estrutura se añade su símbolo
+    LOOP AT lt_comp ASSIGNING FIELD-SYMBOL(<fs_field>).
+
+      ASSIGN COMPONENT <fs_field>-fieldname OF STRUCTURE is_structure TO FIELD-SYMBOL(<fs_value>).
+      IF sy-subrc EQ 0
+     AND <fs_value> IS NOT INITIAL.
+
+        CASE <fs_field>-inttype.
+          WHEN zif_ca_mail_data=>cs_datatypes-inttype-date.
+            WRITE <fs_value> TO lv_value_aux.
+            lv_value = lv_value_aux.
+          WHEN OTHERS.
+
+            IF <fs_field>-convexit IS NOT INITIAL.
+
+              DATA(lv_conv) = |CONVERSION_EXIT_{ <fs_field>-convexit CASE = UPPER }_OUTPUT|.
+
+              CALL FUNCTION lv_conv
+                EXPORTING
+                  input  = <fs_value>
+                IMPORTING
+                  output = lv_value.
+
+              CLEAR lv_conv.
+            ELSE.
+              lv_value = |{ <fs_value> }|.
+            ENDIF.
+        ENDCASE.
+
+        set_symbols_mail(
+          EXPORTING
+            iv_name         = |{ <fs_field>-fieldname CASE = UPPER }|    " String Type
+            iv_value        = lv_value    " String Type
+          CHANGING
+            ct_symbols_mail = ct_symbols_mail    " CA - Mail tempalte symbols
+        ).
+
+        CLEAR: lv_value, lv_value_aux.
+      ENDIF.
+
+    ENDLOOP.
+
+  ENDMETHOD.
+
+
+  METHOD set_subject_body.
+
+    CLEAR: es_return.
+
+
+    " Se reemplaza los simbolos en el cuerpo y asunto.
+    replace_symbols_body_subject( EXPORTING it_symbols = it_symbols
+                                            it_symbols_in_table = it_symbols_in_table
+                                  IMPORTING es_return = es_return ).
+
+
+    IF es_return IS INITIAL. " Sin errores se continua el proceso
+
+      TRY.
+          mo_doc_bcs = cl_document_bcs=>create_document( i_type = zif_ca_mail_data=>cs_mail-type-html
+                                                         i_text = convert_body_2_bcs( )
+                                                         i_subject = convert_subject_2_bcs(  ) ).
+        CATCH cx_root.
+
+          es_return = zcl_ca_utilities=>fill_return( iv_type       = zif_ca_mail_data=>cs_message-error
+                                                     iv_id         = zif_ca_mail_data=>cs_message-id
+                                                     iv_number     = '002' " Error al enviar mail
+                                                     iv_langu      = mv_langu ).
+      ENDTRY.
+
+    ENDIF.
+  ENDMETHOD.
+
+
   METHOD set_subject_body_with_mail.
 
     " Las imagenes se guarda en un objeto MIME para luego añadir el cuerpo del mensaje
@@ -883,174 +1203,50 @@ CLASS zcl_ca_send_mail IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD replace_symbols_body_subject.
-    " Se sustituye los simbols en la variable del asunto y del cuerpo. En el caso del cuerpo solo se hace si la
-    " tabla de simbolos en tabla no esta informada
-* Recorro los simbolos para ir reemplazandolos en el asunto y cuerpo.
-    LOOP AT it_symbols ASSIGNING FIELD-SYMBOL(<ls_symbol>).
-      REPLACE ALL OCCURRENCES OF <ls_symbol>-symbol IN mv_subject WITH <ls_symbol>-value.
-      IF it_symbols_in_table IS INITIAL.
-        REPLACE ALL OCCURRENCES OF <ls_symbol>-symbol IN TABLE mt_body WITH <ls_symbol>-value.
-      ENDIF.
-    ENDLOOP.
+  METHOD set_symbols_mail.
 
-    "  Nueva rutina para cambiar las claves en el cuerpo para insertar tablas:
-    IF it_symbols_in_table IS NOT INITIAL.
-      TRY.
-          replace_symbols_in_table( EXPORTING it_symbols = it_symbols
-                                          it_symbols_in_table     = it_symbols_in_table
-                                 CHANGING ct_body      = mt_body ).
-        CATCH cx_root.
-          es_return = zcl_ca_utilities=>fill_return( iv_type       = zif_ca_mail_data=>cs_message-error
-                                                     iv_id         = zif_ca_mail_data=>cs_message-id
-                                                     iv_number     = '001' " Error al construir el cuerpo del mail
-                                                     iv_langu      = mv_langu ).
-      ENDTRY.
-    ENDIF.
-  ENDMETHOD.
+    DATA: lv_temp_symbol TYPE bsstring.
 
+    FIELD-SYMBOLS: <fs_symbol_mail> LIKE LINE OF ct_symbols_mail,
+                   <fs_value>       TYPE zca_s_mail_table_symbols_value.
 
-  METHOD convert_body_2_bcs.
-    CLEAR rt_body.
+    IF iv_name IS NOT INITIAL.
 
-    " Se adapta la tabla con el cuerpo al formato de la tabla internal del BCS
-    LOOP AT mt_body ASSIGNING FIELD-SYMBOL(<ls_body>).
-      DATA(lt_mail_tmp) = cl_bcs_convert=>string_to_soli( <ls_body> ).
-      INSERT LINES OF lt_mail_tmp INTO TABLE rt_body.
-      CLEAR lt_mail_tmp.
-    ENDLOOP.
+      "Se mapea el nombre del símbolo a incluir
+      lv_temp_symbol = |{ zif_ca_mail_data=>cs_mail-symbols-start_symbol }{ iv_name }{ zif_ca_mail_data=>cs_mail-symbols-end_symbol }|.
 
-  ENDMETHOD.
+      CASE iv_table.
+        WHEN abap_true.
 
+          READ TABLE ct_symbols_mail ASSIGNING <fs_symbol_mail>
+          WITH KEY symbol = lv_temp_symbol.
 
-  METHOD convert_subject_2_bcs.
-
-    rv_subject = mv_subject.
-
-  ENDMETHOD.
-
-
-  METHOD set_attachs.
-
-    CLEAR: es_return.
-
-    LOOP AT it_attachs ASSIGNING FIELD-SYMBOL(<ls_adjuntos>) WHERE content_bin IS NOT INITIAL.
-
-
-      DATA(lv_length) = xstrlen( <ls_adjuntos>-content_bin ).
-      DATA(lv_so_len) = CONV so_obj_len( lv_length ).
-      DATA(lt_solix) = cl_bcs_convert=>xstring_to_solix( <ls_adjuntos>-content_bin ).
-      TRY.
-          CALL METHOD mo_doc_bcs->add_attachment
-            EXPORTING
-              i_attachment_type    = 'BIN'
-              i_attachment_subject = <ls_adjuntos>-name
-              i_att_content_hex    = lt_solix
-              i_attachment_size    = lv_so_len.
-        CATCH cx_root.
-          es_return = zcl_ca_utilities=>fill_return( iv_type       = zif_ca_mail_data=>cs_message-error
-                                                       iv_id         = zif_ca_mail_data=>cs_message-id
-                                                       iv_number     = '002' " Error al enviar mail
-                                                       iv_langu      = mv_langu ).
-      ENDTRY.
-      CLEAR: lt_solix, lv_length.
-
-    ENDLOOP.
-
-  ENDMETHOD.
-
-
-  METHOD set_attributes.
-    DATA lv_utc TYPE timestamp.
-    DATA lv_zone TYPE tznzone VALUE 'CET'.
-
-    TRY.
-* Fecha de caducidad. Se ha de pasar a timestamp para pasarlo a la clase.
-*      CONVERT DATE et_doc_data-expiry_dat INTO TIME STAMP ld_utc TIME ZONE ld_zone.
-*      mo_mail->set_expires_on( ld_utc ).
-
-        " Envio inmediato
-        mo_mail->set_send_immediately( abap_true ).
-
-        " Que se guarde la informe MIME, para poder reprocesar mail si hay imagenes.
-        mo_mail->set_keep_mime( abap_true ).
-
-      CATCH cx_bcs.
-    ENDTRY.
-  ENDMETHOD.
-
-
-  METHOD get_internal_mail_id.
-    DATA:
-      lv_string_mime TYPE string,
-      BEGIN OF ls_bcsd_envid,
-        mandt      TYPE bcsd_envid-mandt,
-        envid      TYPE bcsd_envid-envid,
-        message_id TYPE bcsd_envid-message_id,
-      END OF ls_bcsd_envid,
-      lv_request_id TYPE bcsd_envid-request_id,
-      lv_domain     TYPE sx_domain.
-
-*           Esperamos unos segundos:
-    DO 10 TIMES.
-
-      TRY.
-
-          IF mo_mail IS BOUND.
-
-            DATA(oid) = mo_mail->oid( ).
-
-            DATA(lo_mail) = cl_bcs=>get_instance_by_oid( oid ).
-            lo_mail->send_request->as_mime_message( EXPORTING do_not_create = abap_true
-                                                   IMPORTING mime_message  = DATA(lt_mime) ).
-
-            CALL FUNCTION 'CRM_IC_XML_XSTRING2STRING'
-              EXPORTING
-                inxstring = lt_mime
-              IMPORTING
-                outstring = lv_string_mime.
-
-            ev_internal_mail_id = substring_after(  val = lv_string_mime      sub  = |Message-ID: | ).
-            ev_internal_mail_id = substring_before( val = ev_internal_mail_id sub = cl_abap_char_utilities=>cr_lf ).
-
-            IF ev_internal_mail_id IS INITIAL.
-*                 Si no se encuentra, se intentara generar manualmente:
-              lv_request_id = oid.
-              SELECT mandt envid message_id                                                              "$sst: #601
-                INTO ls_bcsd_envid
-                FROM bcsd_envid UP TO 1 ROWS                                                             "$sst: #601
-               WHERE request_id EQ oid
-               ORDER BY PRIMARY KEY.                                                                     "$sst: #601
-              ENDSELECT.                                                                                 "$sst: #601
-              IF ls_bcsd_envid-message_id IS NOT INITIAL.                                                "$sst: #900
-                CALL FUNCTION 'SX_DEFAULT_INTERNET_DOMAIN_GET'
-                  IMPORTING
-                    domain             = lv_domain
-                  EXCEPTIONS
-                    err_domain_not_set = 1
-                    err_internal       = 2
-                    OTHERS             = 3.
-
-                ev_internal_mail_id = |<{ ls_bcsd_envid-message_id }{ ls_bcsd_envid-mandt }{ ls_bcsd_envid-envid }@{ lv_domain }>|.
-                "ELSE.                                                                                  "$sst: #900
-
-              ENDIF.
-            ENDIF.
+          IF sy-subrc NE 0.
+            INSERT INITIAL LINE INTO TABLE ct_symbols_mail ASSIGNING <fs_symbol_mail>.
           ENDIF.
 
-        CATCH cx_root.
-      ENDTRY.
+          <fs_symbol_mail>-symbol = lv_temp_symbol.
 
-      IF ev_internal_mail_id IS NOT INITIAL.
-        EXIT.
-      ENDIF.
-      WAIT UP TO 1 SECONDS.
+          INSERT INITIAL LINE INTO TABLE <fs_symbol_mail>-values_table ASSIGNING <fs_value>.
 
-    ENDDO.
+          IF <fs_value> IS ASSIGNED.
 
-    IF ev_internal_mail_id IS INITIAL.
-      ev_internal_mail_id = oid.
+            <fs_value>-key   = iv_table_key.
+            <fs_value>-value = iv_value.
+          ENDIF.
+
+        WHEN abap_false.
+
+          INSERT INITIAL LINE INTO TABLE ct_symbols_mail ASSIGNING <fs_symbol_mail>.
+
+          <fs_symbol_mail>-symbol       = lv_temp_symbol.
+          <fs_symbol_mail>-value         = iv_value.
+
+        WHEN OTHERS.
+      ENDCASE.
+
     ENDIF.
-  ENDMETHOD.
 
+
+  ENDMETHOD.
 ENDCLASS.
