@@ -1,32 +1,33 @@
-class ZCL_CA_SEND_MAIL definition
-  public
-  final
-  create public .
+CLASS zcl_ca_send_mail DEFINITION
+  PUBLIC
+  FINAL
+  CREATE PUBLIC .
 
-public section.
+  PUBLIC SECTION.
 
-  methods CONSTRUCTOR
-    importing
-      !IV_LANGU type SYLANGU default SY-LANGU .
-  methods SEND_WITH_TEMPLATE
-    importing
-      !IV_LANGU type SY-LANGU default SY-LANGU
-      !IT_ATTACHS type ZCA_I_MAIL_ATTACH optional
-      !IV_TEMPLATE type ZCA_E_TTEMPL_NAME
-      !IT_RECIPIENTS type BCSY_SMTPA
-      !IT_RECIPIENTS_CC type BCSY_SMTPA optional
-      !IT_RECIPIENTS_BCC type BCSY_SMTPA optional
-      !IV_SENDER type AD_SMTPADR optional
-      !IT_SYMBOLS type ZCA_I_MAIL_TEMPLATE_SYMBOLS optional
-      !IV_REQUEST_LECTURE type SAP_BOOL default ABAP_FALSE
-      !IV_COMMIT type SAP_BOOL default ABAP_TRUE
-      !IV_REPLYTO type AD_SMTPADR optional
-      !IV_APPL type ANY
-      !IV_SET_LONG_SUBJET type SAP_BOOL default ABAP_FALSE
-      !IT_IMAGES type ZCA_I_MAIL_IMAGES optional
-    exporting
-      !ES_RETURN type BAPIRET2
-      !EV_INTERNAL_MAIL_ID type CHAR100 .
+    METHODS constructor
+      IMPORTING
+        !iv_langu TYPE sylangu DEFAULT sy-langu .
+    METHODS send_with_template
+      IMPORTING
+        !iv_langu            TYPE sy-langu DEFAULT sy-langu
+        !it_attachs          TYPE zca_i_mail_attach OPTIONAL
+        !iv_template         TYPE zca_e_ttempl_name
+        !it_recipients       TYPE bcsy_smtpa
+        !it_recipients_cc    TYPE bcsy_smtpa OPTIONAL
+        !it_recipients_bcc   TYPE bcsy_smtpa OPTIONAL
+        !iv_sender           TYPE ad_smtpadr OPTIONAL
+        !it_symbols          TYPE zca_i_mail_template_symbols OPTIONAL
+        !it_symbols_in_table TYPE zca_i_mail_table_symbols_value OPTIONAL
+        !iv_request_lecture  TYPE sap_bool DEFAULT abap_false
+        !iv_commit           TYPE sap_bool DEFAULT abap_true
+        !iv_replyto          TYPE ad_smtpadr OPTIONAL
+        !iv_appl             TYPE any
+        !iv_set_long_subjet  TYPE sap_bool DEFAULT abap_false
+        !it_images           TYPE zca_i_mail_images OPTIONAL
+      EXPORTING
+        !es_return           TYPE bapiret2
+        !ev_internal_mail_id TYPE char100 .
     "! <p class="shorttext synchronized" lang="en">Send mail without template</p>
     "!
     "! @parameter it_images | <p class="shorttext synchronized" lang="en">Images that are embedded in the body</p>
@@ -50,43 +51,43 @@ public section.
     "! @parameter ev_internal_mail_id | <p class="shorttext synchronized" lang="en">Internal ID of mail</p>
     "! @parameter ev_body | <p class="shorttext synchronized" lang="en">Body with the symbols already replaced</p>
     "! @parameter ev_subject | <p class="shorttext synchronized" lang="en">Subject with the symbols already replaced</p>
-  methods SEND
-    importing
-      !IT_IMAGES type ZCA_I_MAIL_IMAGES optional
-      !IT_ATTACHS type ZCA_I_MAIL_ATTACH optional
-      !IT_RECIPIENTS type BCSY_SMTPA
-      !IT_RECIPIENTS_CC type BCSY_SMTPA optional
-      !IT_RECIPIENTS_BCC type BCSY_SMTPA optional
-      !IV_SENDER type AD_SMTPADR optional
-      !IT_SYMBOLS type ZCA_I_MAIL_TEMPLATE_SYMBOLS optional
-      !IT_SYMBOLS_IN_TABLE type ZCA_I_MAIL_TABLE_SYMBOLS_VALUE optional
-      !IV_REQUEST_LECTURE type SAP_BOOL default ABAP_FALSE
-      !IV_COMMIT type SAP_BOOL default ABAP_TRUE
-      !IV_REPLYTO type AD_SMTPADR optional
-      !IV_APPL type ANY optional
-      !IV_SET_LONG_SUBJET type SAP_BOOL default ABAP_FALSE
-      !IV_BODY type STRING
-      !IV_SUBJECT type STRING
-      !IV_SIGNATURE type STRING optional
-      !IV_PREVIEW type SAP_BOOL default ABAP_FALSE
-    exporting
-      !ES_RETURN type BAPIRET2
-      !EV_INTERNAL_MAIL_ID type CHAR100
-      !EV_BODY type STRING
-      !EV_SUBJECT type STRING .
-  class-methods SET_SYMBOLS_MAIL
-    importing
-      !IV_NAME type BSSTRING
-      !IV_TABLE_KEY type BSSTRING optional
-      !IV_VALUE type BSSTRING
-      !IV_TABLE type BOOLEAN_FLG default ABAP_FALSE
-    changing
-      !CT_SYMBOLS_MAIL type ZCA_I_MAIL_TEMPLATE_SYMBOLS .
-  class-methods SET_STRUCTURE_SYMBOLS
-    importing
-      !IS_STRUCTURE type ANY
-    changing
-      !CT_SYMBOLS_MAIL type ZCA_I_MAIL_TEMPLATE_SYMBOLS .
+    METHODS send
+      IMPORTING
+        !it_images           TYPE zca_i_mail_images OPTIONAL
+        !it_attachs          TYPE zca_i_mail_attach OPTIONAL
+        !it_recipients       TYPE bcsy_smtpa
+        !it_recipients_cc    TYPE bcsy_smtpa OPTIONAL
+        !it_recipients_bcc   TYPE bcsy_smtpa OPTIONAL
+        !iv_sender           TYPE ad_smtpadr OPTIONAL
+        !it_symbols          TYPE zca_i_mail_template_symbols OPTIONAL
+        !it_symbols_in_table TYPE zca_i_mail_table_symbols_value OPTIONAL
+        !iv_request_lecture  TYPE sap_bool DEFAULT abap_false
+        !iv_commit           TYPE sap_bool DEFAULT abap_true
+        !iv_replyto          TYPE ad_smtpadr OPTIONAL
+        !iv_appl             TYPE any OPTIONAL
+        !iv_set_long_subjet  TYPE sap_bool DEFAULT abap_false
+        !iv_body             TYPE string
+        !iv_subject          TYPE string
+        !iv_signature        TYPE string OPTIONAL
+        !iv_preview          TYPE sap_bool DEFAULT abap_false
+      EXPORTING
+        !es_return           TYPE bapiret2
+        !ev_internal_mail_id TYPE char100
+        !ev_body             TYPE string
+        !ev_subject          TYPE string .
+    CLASS-METHODS set_symbols_mail
+      IMPORTING
+        !iv_name         TYPE bsstring
+        !iv_table_key    TYPE bsstring OPTIONAL
+        !iv_value        TYPE bsstring
+        !iv_table        TYPE sap_bool DEFAULT abap_false
+      CHANGING
+        !ct_symbols_mail TYPE zca_i_mail_template_symbols .
+    CLASS-METHODS set_structure_symbols
+      IMPORTING
+        !is_structure    TYPE any
+      CHANGING
+        !ct_symbols_mail TYPE zca_i_mail_template_symbols .
   PROTECTED SECTION.
 
     TYPES: tt_body TYPE STANDARD TABLE OF string WITH EMPTY KEY.
@@ -201,7 +202,7 @@ ENDCLASS.
 
 
 
-CLASS ZCL_CA_SEND_MAIL IMPLEMENTATION.
+CLASS zcl_ca_send_mail IMPLEMENTATION.
 
 
   METHOD apply_data_to_template.
@@ -393,7 +394,7 @@ CLASS ZCL_CA_SEND_MAIL IMPLEMENTATION.
 
   METHOD generate_dynamic_symbol_table.
     FIELD-SYMBOLS <ls_table_line> TYPE any.
-    FIELD-SYMBOLS <lt_table> TYPE INDEX TABLE.
+    FIELD-SYMBOLS <lt_table> TYPE STANDARD TABLE.
 
     FREE: eo_data_struct, eo_table_data.
 
@@ -432,7 +433,7 @@ CLASS ZCL_CA_SEND_MAIL IMPLEMENTATION.
           APPEND INITIAL LINE TO <lt_table> ASSIGNING <ls_table_line>.
 
           "   Buscamos los campos que vamos a informar para esta clave:
-          LOOP AT it_symbols ASSIGNING <ls_symbol>.
+          LOOP AT lt_symbols ASSIGNING <ls_symbol>.
 
 
             READ TABLE <ls_symbol>-values_table ASSIGNING FIELD-SYMBOL(<ls_tabla_valores>)
@@ -615,6 +616,14 @@ CLASS ZCL_CA_SEND_MAIL IMPLEMENTATION.
 
 
   METHOD replace_symbols_body_subject.
+
+    "Se reemplazan los caracteres extraños que añaden los editores HTML
+    REPLACE ALL OCCURRENCES OF: zif_ca_mail_data=>cs_mail-symbols-amp_init_symbol IN TABLE mt_body WITH zif_ca_mail_data=>cs_mail-symbols-start_symbol,
+                                zif_ca_mail_data=>cs_mail-symbols-amp_end_symbol  IN TABLE mt_body WITH zif_ca_mail_data=>cs_mail-symbols-end_symbol,
+                                zif_ca_mail_data=>cs_mail-symbols-amp_init_symbol IN mv_subject WITH zif_ca_mail_data=>cs_mail-symbols-start_symbol,
+                                zif_ca_mail_data=>cs_mail-symbols-amp_end_symbol  IN mv_subject WITH zif_ca_mail_data=>cs_mail-symbols-end_symbol.
+
+
     " Se sustituye los simbols en la variable del asunto y del cuerpo. En el caso del cuerpo solo se hace si la
     " tabla de simbolos en tabla no esta informada
 * Recorro los simbolos para ir reemplazandolos en el asunto y cuerpo.
@@ -642,7 +651,7 @@ CLASS ZCL_CA_SEND_MAIL IMPLEMENTATION.
 
 
   METHOD replace_symbols_in_table.
-    FIELD-SYMBOLS <lt_table_data> TYPE INDEX TABLE.
+    FIELD-SYMBOLS <lt_table_data> TYPE STANDARD TABLE.
 
     DATA lv_initial_html_string TYPE string.
     DATA lv_result_html_string  TYPE string.
@@ -657,11 +666,11 @@ CLASS ZCL_CA_SEND_MAIL IMPLEMENTATION.
     " Creamos una tabla interna con los simbolos a insertar, y una estructura con los datos genericos
     generate_dynamic_symbol_table( EXPORTING it_symbols   = it_symbols
                                              it_symbols_in_table       = it_symbols_in_table
-                                   IMPORTING eo_table_data  = lo_symbols
-                                             eo_data_struct = lo_table_data ).
+                                   IMPORTING eo_table_data  = lo_table_data
+                                             eo_data_struct = lo_symbols ).
 
-    ASSIGN: lo_table_data->* TO <lt_table_data>,
-            lo_symbols->*   TO FIELD-SYMBOL(<ls_simbolos>).
+    ASSIGN lo_table_data->* TO <lt_table_data>.
+    ASSIGN lo_symbols->*   TO FIELD-SYMBOL(<ls_simbolos>).
 
     IF <lt_table_data> IS ASSIGNED AND <ls_simbolos> IS ASSIGNED.
       lv_result_html_string = apply_data_to_template( iv_html_string  = lv_initial_html_string
@@ -685,14 +694,6 @@ CLASS ZCL_CA_SEND_MAIL IMPLEMENTATION.
 
     " Se hace lo mismo con la firma, si esta informada.
     SPLIT iv_signature AT cl_abap_char_utilities=>cr_lf INTO TABLE DATA(lt_signature).
-
-    "Se reemplazan los caracteres extraños que añaden los editores HTML
-    REPLACE ALL OCCURRENCES OF: zif_ca_mail_data=>cs_mail-symbols-amp_init_symbol IN TABLE mt_body WITH zif_ca_mail_data=>cs_mail-symbols-start_symbol,
-                                zif_ca_mail_data=>cs_mail-symbols-amp_end_symbol  IN TABLE mt_body WITH zif_ca_mail_data=>cs_mail-symbols-end_symbol,
-                                zif_ca_mail_data=>cs_mail-symbols-amp_init_symbol IN mv_subject WITH zif_ca_mail_data=>cs_mail-symbols-start_symbol,
-                                zif_ca_mail_data=>cs_mail-symbols-amp_end_symbol  IN mv_subject WITH zif_ca_mail_data=>cs_mail-symbols-end_symbol,
-                                zif_ca_mail_data=>cs_mail-symbols-amp_init_symbol IN TABLE lt_signature WITH zif_ca_mail_data=>cs_mail-symbols-start_symbol,
-                                zif_ca_mail_data=>cs_mail-symbols-amp_end_symbol  IN TABLE lt_signature WITH zif_ca_mail_data=>cs_mail-symbols-end_symbol.
 
     " Se añade la firma al cuerpo
     LOOP AT lt_signature ASSIGNING FIELD-SYMBOL(<ls_signature>).
@@ -858,7 +859,7 @@ CLASS ZCL_CA_SEND_MAIL IMPLEMENTATION.
           it_recipients_bcc   = it_recipients_bcc
           iv_sender           = iv_sender
           it_symbols          = it_symbols
-*          it_symbols_in_table =
+          it_symbols_in_table = it_symbols_in_table
           iv_request_lecture  = iv_request_lecture
           iv_commit           = iv_commit
           iv_replyto          = iv_replyto
