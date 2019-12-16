@@ -8,6 +8,8 @@ CLASS zcl_ca_send_mail DEFINITION
     METHODS constructor
       IMPORTING
         !iv_langu TYPE sylangu DEFAULT sy-langu .
+    "! <p class="shorttext synchronized" lang="en">Send mail  template</p>
+    "!
     METHODS send_with_template
       IMPORTING
         !iv_langu            TYPE sy-langu DEFAULT sy-langu
@@ -18,7 +20,6 @@ CLASS zcl_ca_send_mail DEFINITION
         !it_recipients_bcc   TYPE bcsy_smtpa OPTIONAL
         !iv_sender           TYPE ad_smtpadr OPTIONAL
         !it_symbols          TYPE zca_i_mail_template_symbols OPTIONAL
-        !it_symbols_in_table TYPE zca_i_mail_table_symbols_value OPTIONAL
         !iv_request_lecture  TYPE sap_bool DEFAULT abap_false
         !iv_commit           TYPE sap_bool DEFAULT abap_true
         !iv_replyto          TYPE ad_smtpadr OPTIONAL
@@ -60,7 +61,6 @@ CLASS zcl_ca_send_mail DEFINITION
         !it_recipients_bcc   TYPE bcsy_smtpa OPTIONAL
         !iv_sender           TYPE ad_smtpadr OPTIONAL
         !it_symbols          TYPE zca_i_mail_template_symbols OPTIONAL
-        !it_symbols_in_table TYPE zca_i_mail_table_symbols_value OPTIONAL
         !iv_request_lecture  TYPE sap_bool DEFAULT abap_false
         !iv_commit           TYPE sap_bool DEFAULT abap_true
         !iv_replyto          TYPE ad_smtpadr OPTIONAL
@@ -78,7 +78,7 @@ CLASS zcl_ca_send_mail DEFINITION
     CLASS-METHODS set_symbols_mail
       IMPORTING
         !iv_name         TYPE bsstring
-        !iv_table_key    TYPE bsstring OPTIONAL
+        !iv_row_table    TYPE i OPTIONAL
         !iv_value        TYPE bsstring
         !iv_table        TYPE sap_bool DEFAULT abap_false
       CHANGING
@@ -97,7 +97,6 @@ CLASS zcl_ca_send_mail DEFINITION
     DATA mv_subject TYPE string .
     DATA mt_body TYPE tt_body .
     DATA mv_langu TYPE sylangu .
-*  data mO_PLANTILLA type ref to ZCL_CA_PLANTILLA_MAIL .
     DATA mo_mime_helper TYPE REF TO cl_gbt_multirelated_service .
 
     "! <p class="shorttext synchronized" lang="en">Set the subject and body</p>
@@ -108,7 +107,6 @@ CLASS zcl_ca_send_mail DEFINITION
     METHODS set_subject_body
       IMPORTING
         it_symbols          TYPE zca_i_mail_template_symbols OPTIONAL
-        it_symbols_in_table TYPE zca_i_mail_table_symbols_value OPTIONAL
       EXPORTING
         es_return           TYPE bapiret2.
 
@@ -120,16 +118,13 @@ CLASS zcl_ca_send_mail DEFINITION
     METHODS replace_symbols_in_table
       IMPORTING
         it_symbols          TYPE zca_i_mail_template_symbols
-        it_symbols_in_table TYPE zca_i_mail_table_symbols_value
       CHANGING
         ct_body             TYPE zcl_ca_send_mail=>tt_body.
     METHODS generate_dynamic_symbol_table
       IMPORTING
-        it_symbols          TYPE zca_i_mail_template_symbols
-        it_symbols_in_table TYPE zca_i_mail_table_symbols_value
+        it_symbols    TYPE zca_i_mail_template_symbols
       EXPORTING
-        eo_table_data       TYPE REF TO data
-        eo_data_struct      TYPE REF TO data.
+        eo_table_data TYPE REF TO data.
     METHODS remove_special_chars
       IMPORTING
         iv_symbol        TYPE string
@@ -139,7 +134,7 @@ CLASS zcl_ca_send_mail DEFINITION
       IMPORTING
         iv_html_string        TYPE string
         it_data               TYPE INDEX TABLE OPTIONAL
-        is_general_data       TYPE any
+        is_general_data       TYPE any OPTIONAL
       RETURNING
         VALUE(rv_html_string) TYPE string.
     METHODS remove_html_comment
@@ -171,13 +166,11 @@ CLASS zcl_ca_send_mail DEFINITION
       IMPORTING
         it_images           TYPE zca_i_mail_images
         it_symbols          TYPE zca_i_mail_template_symbols
-        it_symbols_in_table TYPE zca_i_mail_table_symbols_value
       EXPORTING
         es_return           TYPE bapiret2.
     METHODS replace_symbols_body_subject
       IMPORTING
         it_symbols          TYPE zca_i_mail_template_symbols
-        it_symbols_in_table TYPE zca_i_mail_table_symbols_value
       EXPORTING
         es_return           TYPE bapiret2.
     METHODS convert_body_2_bcs
@@ -395,59 +388,72 @@ CLASS zcl_ca_send_mail IMPLEMENTATION.
   METHOD generate_dynamic_symbol_table.
     FIELD-SYMBOLS <ls_table_line> TYPE any.
     FIELD-SYMBOLS <lt_table> TYPE STANDARD TABLE.
+    DATA lo_data_struct TYPE REF TO data.
 
-    FREE: eo_data_struct, eo_table_data.
+    FREE: eo_table_data.
 
     TRY.
         " Creamos una tabla interna  de simbolos pero quitando los carácteres especiales
 
         DATA(lt_symbols) = VALUE zca_i_mail_template_symbols( FOR <wa> IN it_symbols ( symbol = remove_special_chars( <wa>-symbol )
-                                                                                       value = <wa>-value
-                                                                                       values_table = <wa>-values_table ) ).
+                                                                                       value = <wa>-value                                                                                       row_table = <wa>-row_table ) ).
 
         " Paso 1: generamos la tabla de componentes:
+        DATA(lv_type) = cl_abap_elemdescr=>get_string( ). " Se obtiene el tipo que se usará para todos los campos
         DATA(lt_components) = VALUE cl_abap_structdescr=>component_table( FOR <wa> IN lt_symbols ( name = <wa>-symbol
-                                                                                                   type = cl_abap_elemdescr=>get_string( ) ) ).
+                                                                                                   type = lv_type ) ).
+        " Quitamos los posibles duplicados que habrá porque un mismo simbolo se repetirá tantas veces como registros vaya a tener la tabla
+        SORT lt_components BY name.
+        DELETE ADJACENT DUPLICATES FROM lt_components COMPARING name.
 
         " Paso 2 creamnos la estructura y la instanciamos:
         DATA(lo_structdescr) = cl_abap_structdescr=>create( p_components = lt_components ).    " Component Table
-        CREATE DATA eo_data_struct TYPE HANDLE lo_structdescr.
-        ASSIGN eo_data_struct->* TO <ls_table_line>.
+        CREATE DATA lo_data_struct TYPE HANDLE lo_structdescr.
 
-        " Paso 3: rellenamos la estructura:
-        LOOP AT lt_symbols ASSIGNING FIELD-SYMBOL(<ls_symbol>).
-          ASSIGN COMPONENT <ls_symbol>-symbol OF STRUCTURE <ls_table_line> TO FIELD-SYMBOL(<lv_comp>).
-          IF sy-subrc EQ 0.
-            <lv_comp> = <ls_symbol>-value.
-          ENDIF.
-        ENDLOOP.
-
-        " Paso 4: Creamos la tabla interna
+        " Paso 3: Creamos la tabla interna
         DATA(lo_tabledescr) = cl_abap_tabledescr=>create( p_line_type = lo_structdescr ).
         CREATE DATA eo_table_data TYPE HANDLE lo_tabledescr.
         ASSIGN eo_table_data->* TO <lt_table>.
 
-        " Paso 5: rellenamos la tabla interna:
+        " Paso 4: rellenamos la tabla interna:
+        SORT lt_symbols BY row_table. " Se orden por numero de fila
+        LOOP AT lt_symbols ASSIGNING FIELD-SYMBOL(<ls_symbols_dymmy>)
+                           WHERE row_table IS NOT INITIAL
+                           GROUP BY ( row_table = <ls_symbols_dymmy>-row_table )
+                           ASSIGNING FIELD-SYMBOL(<group>).
 
-        LOOP AT it_symbols_in_table ASSIGNING FIELD-SYMBOL(<ls_symbols_in_table>).
           APPEND INITIAL LINE TO <lt_table> ASSIGNING <ls_table_line>.
-
-          "   Buscamos los campos que vamos a informar para esta clave:
-          LOOP AT lt_symbols ASSIGNING <ls_symbol>.
-
-
-            READ TABLE <ls_symbol>-values_table ASSIGNING FIELD-SYMBOL(<ls_tabla_valores>)
-              WITH KEY key = <ls_symbols_in_table>-key.
+          LOOP AT GROUP <group> ASSIGNING FIELD-SYMBOL(<ls_symbol>).
+            ASSIGN COMPONENT <ls_symbol>-symbol OF STRUCTURE <ls_table_line> TO FIELD-SYMBOL(<lv_comp>).
             IF sy-subrc EQ 0.
-              ASSIGN COMPONENT <ls_symbol>-symbol OF STRUCTURE <ls_table_line> TO <lv_comp>.
-              IF sy-subrc EQ 0.
-                <lv_comp> = <ls_tabla_valores>-value.
-              ENDIF.
+              <lv_comp> = <ls_symbol>-value.
+            ENDIF.
+          ENDLOOP.
+        ENDLOOP.
+
+        " Paso 5: Se pasan los simbolos generales a los campos genericos de la tabla
+        LOOP AT <lt_table> ASSIGNING <ls_table_line>.
+
+          LOOP AT lt_symbols ASSIGNING <ls_symbol> WHERE row_table IS INITIAL.
+            ASSIGN COMPONENT <ls_symbol>-symbol OF STRUCTURE <ls_table_line> TO <lv_comp>.
+            IF sy-subrc EQ 0.
+              <lv_comp> = <ls_symbol>-value.
             ENDIF.
           ENDLOOP.
 
-
         ENDLOOP.
+        " Si no hubiese tabla se añade un registro con el valor de los simbolos.
+        " Este caso no debería pasar porque a este método se llama cuando hay simbolos de tabla
+        IF sy-subrc NE 0.
+          APPEND INITIAL LINE TO <lt_table> ASSIGNING <ls_table_line>.
+          LOOP AT lt_symbols ASSIGNING <ls_symbol> WHERE row_table IS INITIAL.
+            ASSIGN COMPONENT <ls_symbol>-symbol OF STRUCTURE <ls_table_line> TO <lv_comp>.
+            IF sy-subrc EQ 0.
+              <lv_comp> = <ls_symbol>-value.
+            ENDIF.
+          ENDLOOP.
+        ENDIF.
+
 
       CATCH cx_root.
     ENDTRY.
@@ -624,21 +630,26 @@ CLASS zcl_ca_send_mail IMPLEMENTATION.
                                 zif_ca_mail_data=>cs_mail-symbols-amp_end_symbol  IN mv_subject WITH zif_ca_mail_data=>cs_mail-symbols-end_symbol.
 
 
+    DATA(lv_symbol_table) = abap_false.
+    LOOP AT it_symbols TRANSPORTING NO FIELDS WHERE row_table IS NOT INITIAL.
+      lv_symbol_table = abap_true.
+      EXIT.
+    ENDLOOP.
+
     " Se sustituye los simbols en la variable del asunto y del cuerpo. En el caso del cuerpo solo se hace si la
     " tabla de simbolos en tabla no esta informada
 * Recorro los simbolos para ir reemplazandolos en el asunto y cuerpo.
     LOOP AT it_symbols ASSIGNING FIELD-SYMBOL(<ls_symbol>).
       REPLACE ALL OCCURRENCES OF <ls_symbol>-symbol IN mv_subject WITH <ls_symbol>-value.
-      IF it_symbols_in_table IS INITIAL.
+      IF lv_symbol_table = abap_false.
         REPLACE ALL OCCURRENCES OF <ls_symbol>-symbol IN TABLE mt_body WITH <ls_symbol>-value.
       ENDIF.
     ENDLOOP.
 
     "  Nueva rutina para cambiar las claves en el cuerpo para insertar tablas:
-    IF it_symbols_in_table IS NOT INITIAL.
+    IF lv_symbol_table = abap_true.
       TRY.
           replace_symbols_in_table( EXPORTING it_symbols = it_symbols
-                                          it_symbols_in_table     = it_symbols_in_table
                                  CHANGING ct_body      = mt_body ).
         CATCH cx_root.
           es_return = zcl_ca_utilities=>fill_return( iv_type       = zif_ca_mail_data=>cs_message-error
@@ -656,7 +667,6 @@ CLASS zcl_ca_send_mail IMPLEMENTATION.
     DATA lv_initial_html_string TYPE string.
     DATA lv_result_html_string  TYPE string.
     DATA lo_table_data          TYPE REF TO data.
-    DATA lo_symbols            TYPE REF TO data.
 
     " Se concatena todos el cuerpo en una sola variable
     CONCATENATE LINES OF ct_body INTO lv_initial_html_string RESPECTING BLANKS.
@@ -665,17 +675,14 @@ CLASS zcl_ca_send_mail IMPLEMENTATION.
 
     " Creamos una tabla interna con los simbolos a insertar, y una estructura con los datos genericos
     generate_dynamic_symbol_table( EXPORTING it_symbols   = it_symbols
-                                             it_symbols_in_table       = it_symbols_in_table
-                                   IMPORTING eo_table_data  = lo_table_data
-                                             eo_data_struct = lo_symbols ).
+                                   IMPORTING eo_table_data  = lo_table_data ).
 
     ASSIGN lo_table_data->* TO <lt_table_data>.
-    ASSIGN lo_symbols->*   TO FIELD-SYMBOL(<ls_simbolos>).
 
-    IF <lt_table_data> IS ASSIGNED AND <ls_simbolos> IS ASSIGNED.
+
+    IF <lt_table_data> IS ASSIGNED.
       lv_result_html_string = apply_data_to_template( iv_html_string  = lv_initial_html_string
-                                                      it_data         = <lt_table_data>
-                                                      is_general_data = <ls_simbolos> ).
+                                                      it_data         = <lt_table_data> ).
     ENDIF.
 
     SPLIT lv_result_html_string AT cl_abap_char_utilities=>cr_lf INTO TABLE ct_body.
@@ -731,7 +738,6 @@ CLASS zcl_ca_send_mail IMPLEMENTATION.
               EXPORTING
                 it_images = it_images
                 it_symbols = it_symbols
-                it_symbols_in_table     = it_symbols_in_table
               IMPORTING
                 es_return     = es_return ).
 
@@ -739,7 +745,6 @@ CLASS zcl_ca_send_mail IMPLEMENTATION.
           ELSE.
 
             set_subject_body( EXPORTING it_symbols = it_symbols
-                                          it_symbols_in_table = it_symbols_in_table
                                 IMPORTING es_return = es_return ).
           ENDIF.
 
@@ -796,7 +801,6 @@ CLASS zcl_ca_send_mail IMPLEMENTATION.
 
     ELSE.
       set_subject_body( EXPORTING it_symbols = it_symbols
-                                    it_symbols_in_table = it_symbols_in_table
                           IMPORTING es_return = es_return ).
     ENDIF.
 
@@ -859,7 +863,6 @@ CLASS zcl_ca_send_mail IMPLEMENTATION.
           it_recipients_bcc   = it_recipients_bcc
           iv_sender           = iv_sender
           it_symbols          = it_symbols
-          it_symbols_in_table = it_symbols_in_table
           iv_request_lecture  = iv_request_lecture
           iv_commit           = iv_commit
           iv_replyto          = iv_replyto
@@ -1146,7 +1149,6 @@ CLASS zcl_ca_send_mail IMPLEMENTATION.
 
     " Se reemplaza los simbolos en el cuerpo y asunto.
     replace_symbols_body_subject( EXPORTING it_symbols = it_symbols
-                                            it_symbols_in_table = it_symbols_in_table
                                   IMPORTING es_return = es_return ).
 
 
@@ -1175,7 +1177,6 @@ CLASS zcl_ca_send_mail IMPLEMENTATION.
 
     " Se reemplaza los simbolos en el cuerpo y asunto.
     replace_symbols_body_subject( EXPORTING it_symbols = it_symbols
-                                            it_symbols_in_table = it_symbols_in_table
                                   IMPORTING es_return = es_return ).
     IF es_return IS INITIAL.
 
@@ -1208,45 +1209,21 @@ CLASS zcl_ca_send_mail IMPLEMENTATION.
 
     DATA: lv_temp_symbol TYPE bsstring.
 
-    FIELD-SYMBOLS: <fs_symbol_mail> LIKE LINE OF ct_symbols_mail,
-                   <fs_value>       TYPE zca_s_mail_table_symbols_value.
+    FIELD-SYMBOLS: <fs_symbol_mail> LIKE LINE OF ct_symbols_mail.
 
     IF iv_name IS NOT INITIAL.
 
       "Se mapea el nombre del símbolo a incluir
       lv_temp_symbol = |{ zif_ca_mail_data=>cs_mail-symbols-start_symbol }{ iv_name }{ zif_ca_mail_data=>cs_mail-symbols-end_symbol }|.
 
-      CASE iv_table.
-        WHEN abap_true.
+      INSERT INITIAL LINE INTO TABLE ct_symbols_mail ASSIGNING <fs_symbol_mail>.
 
-          READ TABLE ct_symbols_mail ASSIGNING <fs_symbol_mail>
-          WITH KEY symbol = lv_temp_symbol.
-
-          IF sy-subrc NE 0.
-            INSERT INITIAL LINE INTO TABLE ct_symbols_mail ASSIGNING <fs_symbol_mail>.
-          ENDIF.
-
-          <fs_symbol_mail>-symbol = lv_temp_symbol.
-
-          INSERT INITIAL LINE INTO TABLE <fs_symbol_mail>-values_table ASSIGNING <fs_value>.
-
-          IF <fs_value> IS ASSIGNED.
-
-            <fs_value>-key   = iv_table_key.
-            <fs_value>-value = iv_value.
-          ENDIF.
-
-        WHEN abap_false.
-
-          INSERT INITIAL LINE INTO TABLE ct_symbols_mail ASSIGNING <fs_symbol_mail>.
-
-          <fs_symbol_mail>-symbol       = lv_temp_symbol.
-          <fs_symbol_mail>-value         = iv_value.
-
-        WHEN OTHERS.
-      ENDCASE.
+      <fs_symbol_mail>-symbol       = lv_temp_symbol.
+      <fs_symbol_mail>-value         = iv_value.
+      <fs_symbol_mail>-row_table = iv_row_table.
 
     ENDIF.
+
 
 
   ENDMETHOD.
