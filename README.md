@@ -1,14 +1,14 @@
 # Objetivo/Objective
-Clase que simplifica el envio de correos electrónicos y permite el uso de plantillas pa / Class that allows access to sharepoint through REST services.
+Clase que simplifica el envio de correos electrónicos y permite el uso de plantillas en el envio. / Class that simplifies the sending of emails and allows the use of templates in the sending.
 
-Dentro del proyecto hay una serie de programas de ejemplo donde se detalla su funcionamiento. No toda la funcionalidad tiene su programa de ejemplo(ejemplo la asignación de usuarios y roles a carpeta). / Within the project there are a series of sample programs where its operation is detailed. Not all functionality has its sample program (for example, the assignment of users and roles to a folder).
+Dentro del proyecto hay una serie de programas de ejemplo donde se ve el funcionamiento de las parte principales de la clase. / Within the project there are a series of example programs where the operation of the main parts of the class is seen.
 
 # Dependencias/Dependencies
 
-Hay que tener instalado el repositorio "http_services"(https://github.com/irodrigob/http_services) para su funcionamiento. / The "http_services" repository (https://github.com/irodrigob/http_services) must be installed for its operation.
+Hay que tener instalado el repositorio "ABAP_Text_Templates"(https://github.com/irodrigob/ABAP_Text_Templates) para su funcionamiento. / The "ABAP_Text_Templates" repository (https://github.com/irodrigob/ABAP_Text_Templates) must be installed for its operation.
 
 # Prerequisitos / Prerequisites
 
 Versión ABAP 7.4 o superior / ABAP 7.4 or higher
 
-# Funcionalidad / Functionality
+
