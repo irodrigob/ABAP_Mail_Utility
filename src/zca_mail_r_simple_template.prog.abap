@@ -3,8 +3,15 @@
 *&---------------------------------------------------------------------*
 *& Example of using simple template in mail using the class ZCL_CA_SEND_MAIL
 *& Value of subject field: User -&USER&- this is a example of simple template.
-*& Value of body field:
-*& User -&USER&- this is a example of simple template.
+*& Value of body field(HTML format):
+*<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">
+*<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN" ""><HTML><HEAD>
+*<META http-equiv="content-type" content="text/html; charset=utf-8">
+*<META name="GENERATOR" content="MSHTML 11.00.10570.1001"></HEAD>
+*<BODY>
+*<P>User&nbsp;-&amp;USER&amp;- this is a example of simple template.</P>
+*<P><BR></P>
+*<P><BR></P></BODY></HTML>
 *&---------------------------------------------------------------------*
 REPORT zca_mail_r_simple_template.
 
